@@ -50,3 +50,9 @@ Barcelona CEST, 19 September 2026: integration freeze **21:00**, code freeze **2
 The reference scene is generic and is not a real utility asset or manufacturing CAD. Plate dimensions are a team-designed demo fixture. All generated artifacts remain NOT_APPROVED for operational use. No news photos, real station documents or credentials are bundled.
 
 The working name is provisional; no trademark or domain clearance has been performed. Licensing has not been selected. Confirm hackathon reuse rules before incorporating reference assets into the judged build.
+
+## Contributors 
+
+- Andrii 
+- Mortaza 
+- Valentin
