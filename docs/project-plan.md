@@ -24,7 +24,7 @@ This plan supersedes the plate plan and contract v1.1. Historical material is re
 | --- | --- | --- |
 | F1 | Team: Andrii—product/energy; Valentin—ML/software; Mortaza—full stack/cloud/AI. | Ownership below is authoritative for this demo. |
 | F2 | No printer. Finish Saturday at 23:00; restart Sunday at 09:00; submit by 11:00 Barcelona time. | CAD files are the deliverable. No overnight work or physical print milestone. |
-| F3 | Middle ring is photographed intact. No broken-ring photo or verified dimensions have been supplied yet. | Andrii captures the damaged specimen before the main reconstruction test. Do not label intact photographs as damage evidence. |
+| F3 | Intact and broken middle-ring photographs, including groove close-ups, have been supplied. Dimensions remain unverified. | Andrii checks capture/calibration quality before the main reconstruction test. Do not label intact photographs as damage evidence. |
 | A1 | Revised remaining-work baseline is Saturday 19 September **17:45 CEST**. | If late, reduce polish and optional speech output; recompute the 60% freeze using active work time, preserving the sleep interval and submission deadline. |
 | A2 | The Calicéo card is ID-1 size, nominally 85.60 × 53.98 mm, only after Andrii confirms that format. | Until confirmed, keep metric dimensions null; use another known-size reference. A familiar logo does not establish size. |
 | A3 | A substantial undistorted arc survives, and the selected ring was circular. | If fragments are bent, perspective is unresolved or circle fit is unstable, request another view/fragment arrangement. Do not force a nominal circle. |
@@ -33,7 +33,7 @@ This plan supersedes the plate plan and contract v1.1. Historical material is re
 | A6 | Main pitch is five minutes; an English speaker and ordinary phone/laptop microphone suffice. | Use the three-minute script if required. Translation and continuous conversation are out of scope. |
 | A7 | Existing generic assets may be reused under event rules. | Andrii checks eligibility; main ring path must work without them. |
 
-Current photos: the top image provides a useful target view. Side image 3 is the clearest of the supplied side views, but coplanarity and exact profile remain unverified. Some card edges are partly obscured in other images. Andrii should capture a clean side view of the selected ring with all card edges visible and aligned to the measured side. Intact photos are held-out comparison material for the principal damaged-only run; any intact-photo assistance must be disclosed separately.
+Current photos include a surviving broken arc and a close-up supporting an inner concave groove. Andrii reports an outer convex bulge mating with the surrounding ring. Exact cross-section dimensions remain unknown. The USB connector in the latest close-up is not a calibrated scale. The top image provides a useful target view. Side image 3 is the clearest of the supplied side views, but coplanarity and exact profile remain unverified. Some card edges are partly obscured in other images. Andrii should capture a clean side view of the selected ring with all card edges visible and aligned to the measured side. Intact photos are held-out comparison material for the principal damaged-only run; any intact-photo assistance must be disclosed separately.
 
 References: [ID-1 dimensions](https://www.iso.org/standard/31432.html), [planar perspective correction](https://docs.opencv.org/4.5.1/d9/dab/tutorial_homography.html). Card calibration applies to its plane; raised surfaces and camera distortion still introduce error. Do not assign an unmeasured ±mm accuracy claim.
 
@@ -41,8 +41,8 @@ References: [ID-1 dimensions](https://www.iso.org/standard/31432.html), [planar 
 
 | MoSCoW | Deliverable |
 | --- | --- |
-| **Must** | One damaged middle ring; known-scale top/side capture; operator-adjustable target/card outlines; real Nebius interpretation; real SLNG voice answers; dimension confirmation; one axisymmetric ring CAD generator; damaged/restored comparison; actual STEP/STL/JSON downloads; independent file checks; five acceptance cases; actual sponsor evidence; pitch showing the existing substation/catalog foundation and industrial roadmap; recording and submission. |
-| **Should** | Automatic edge detection with manual correction; spoken questions through SLNG TTS; side-profile polygon capture for visible bevels; held-out intact-photo comparison; stable hosted demo if existing deployment is quick. |
+| **Must** | One damaged middle ring; known-scale top/side capture; operator-adjustable target/card outlines; real Nebius interpretation; real SLNG voice answers; spoken profile correction with preview and separate confirmation; dimension confirmation; one axisymmetric ring CAD generator; damaged/restored comparison; actual STEP/STL/JSON downloads; independent file checks; five acceptance cases; actual sponsor evidence; pitch showing the existing substation/catalog foundation and industrial roadmap; recording and submission. |
+| **Should** | Automatic edge detection with manual correction; spoken questions through SLNG TTS; automatic side-profile polygon capture; held-out intact-photo comparison; stable hosted demo if existing deployment is quick. |
 | **Could** | A second ring size using the same generator; an in-app link to the existing substation model. The substation/catalog story is already required in the pitch. |
 | **Won't** | Printing or fit claims; the full spinner mechanism; hidden joint reconstruction; arbitrary image-to-exact-CAD; generative meshes presented as manufacturing CAD; new model training; cups or plates as a second main path; full substation scene rebuild; SQL database; accounts; idempotency/revision/hash framework; automatic machine control; unmute, telephony, translation; a fourth sponsor integration. |
 
@@ -153,6 +153,19 @@ export interface GenerateRequest {
   profile_confirmed: boolean;
   purpose: "DEMO_CAD_ONLY";
 }
+export type ProfileFeature = "INNER_GROOVE" | "OUTER_BULGE";
+export interface ProfileEditRequest {
+  accepted: GenerateRequest;
+  reviewed_voice_text: string; // <=2,000 chars; one correction, not confirmation
+}
+export interface ProfileEditResult {
+  feature: ProfileFeature | null;
+  candidate: GenerateRequest | null; // null means clarification required; never auto-confirmed
+  readback: string; // feature, old/new values, units and measurement vs design adjustment
+  question: string | null;
+  limitations: string[]; // preserve with accepted model and include in exported summary
+  trace: Trace;
+}
 export interface CadCheck {
   name: "SOLID" | "DIMENSIONS" | "PROFILE" | "STEP_REIMPORT" | "STL_MESH";
   passed: boolean;
@@ -178,12 +191,15 @@ export interface ApiError {
 | --- | --- | --- |
 | `POST /api/inspect` | Multipart `top_image` required, `side_image` optional, `context` = JSON InspectContext. | 200 InspectResult. Re-submit with updated context when the operator corrects boundaries or adds evidence. Preserve measurements already confirmed in the UI; show new estimates separately. |
 | `POST /api/voice` | Multipart `audio` file; English, one speaker, ≤30 seconds. | 200 VoiceResult. Operator reviews transcript before it becomes `reviewed_voice_text`. Silence is an error, not a fabricated answer. |
+| `POST /api/profile-edit` | JSON ProfileEditRequest; reuse Nebius interpretation and fixed profile operations. | 200 ProfileEditResult. Candidate has profile_confirmed=false; changed dimensions are unconfirmed. Null candidate requires a question. Confirm/cancel/undo are client actions on the visible proposal. |
 | `POST /api/generate` | JSON GenerateRequest. | 200 GenerateResult only after export checks. 422 missing/invalid inputs; 500 CAD_FAILED. |
 | `GET /api/files/{filename}` | Server-issued basename from a result. | File bytes; 404 unknown file. Reject traversal; no arbitrary paths or model-created URLs. |
 
 Errors use ApiError; provider failure 502, timeout 504. Limit each image/audio upload to 10 MiB and decoded images to 20 megapixels. JPEG/PNG/WebP images; pin audio encodings to the actual tested SLNG model. Maximum provider wait 30 seconds, CAD 30 seconds; sequential runs on the demo laptop. Do not return raw provider secrets/errors.
 
 All numbers are finite; millimetres for CAD. Null values have source=null and confirmed=false. POST /generate recomputes validity and ignores no invalid fields; reject unknown fields. New edits immediately clear old preview/download links until a new successful generation. No stale CAD displayed as a new result.
+
+For profile edits, validate the candidate before returning it; derive inner/outer diameters from minimum/maximum profile radius. Preserve the edit readback and limitations alongside the generated summary in the downloaded JSON. An adjustment with no measurement basis must not be assigned a measurement source.
 
 `profile_rz_mm` uses radius from the ring axis and height from its bottom; at least 4 and at most 16 vertices for an observed, simple closed cross-section, within the confirmed inner/outer radius and height. No self-intersection or negative radius. A null profile is permitted only with `profile_basis=SIMPLIFIED_RECTANGLE` and `profile_confirmed=true`; result labels the approximation. Hidden mechanism fit is never asserted.
 
@@ -195,12 +211,29 @@ No fabricated nominal dimensions are seeded. [ring-demo.json](../fixtures/ring-d
 2. **Establish scale per view.** Confirm card dimensions and identify four nominal rectangular corners from its straight edges, accounting for rounded corners. Use a planar transform only when the card and measured feature share a plane. Top and side calibrations are separate.
 3. **Find surviving arcs.** Exclude fracture edges, shadows, card and other rings. Fit inner/outer circles in the rectified top view. Require at least a half-circle of distributed surviving support for this demo (a conservative capture heuristic, not an accuracy guarantee). Insufficient support or inconsistent contours → ask for another view; preserve uncertainty. Do not measure the damaged outline's bounding box as the original diameter.
 4. **Recover the missing region.** Under the confirmed circular-ring hypothesis, extend the fitted boundaries around the missing section. Overlay observed edges and restored section in different colors. Image processing supplies measurements; Nebius interprets context and chooses the next question.
-5. **Resolve thickness/profile.** Side capture supplies thickness only with usable scale/plane alignment. Inspect exposed surfaces. A plain annulus is acceptable only as an explicitly selected envelope approximation if the true profile is unresolved. Lettering is cosmetic and omitted with disclosure.
-6. **Use speech as input.** The app asks a short question. SLNG transcribes the answer; the operator confirms the displayed value and units. “Maybe 9 or 19” remains unknown. A clear confirmed measured value can update a dimension. “Looks about…” is an estimate requiring measurement, not an automatic confirmation.
+5. **Resolve thickness/profile.** Represent the inner groove and outer bulge in a radius-height cross-section, then revolve it 360° if circumferential uniformity is confirmed. The polygon is a faceted approximation of curved surfaces; disclose this. Visible lip diameters may differ from groove-root and maximum-bulge diameters. Fracture cavities/infill are not automatically design features. Side capture supplies thickness only with usable scale/plane alignment. Inspect exposed surfaces. A plain annulus is acceptable only as an explicitly selected envelope approximation if the true profile is unresolved. Lettering is cosmetic and omitted with disclosure.
+6. **Use speech as input and correction.** Follow the profile-edit interaction below. The app asks a short question. SLNG transcribes the answer; the operator confirms the displayed value and units. “Maybe 9 or 19” remains unknown. A clear confirmed measured value can update a dimension. “Looks about…” is an estimate requiring measurement, not an automatic confirmation.
 7. **Generate deterministically.** Require positive dimensions, outer>inner, bounded size (outer ≤200 mm, thickness ≤50 mm, demo limits), profile confirmation and a fixed template. Never run model-generated Python or shell.
 8. **Check files, then publish.** One valid solid; expected bounds and profile; STEP reimport repeats checks; STL is closed/manifold with positive volume. Compare CAD against requested parameters within numerical tolerance 0.05 mm. This checks software output, not photographic or manufacturing accuracy.
 
 InspectResult dimensions are initially unconfirmed. A voice answer or visual correction must not silently become confirmed. CAD summary records source values, approximation labels and physical_fit_verified=false. Compare held-out intact photographs only after the damaged-input run; without independent metrology, call this a consistency comparison, not an accuracy measurement.
+
+### Voice-guided profile correction
+
+**Build target, not an implemented capability claim.** Keep this inside GM-03 through GM-06; no general CAD assistant or extra sponsor. SLNG supplies real speech transcription; Nebius interprets a bounded edit; fixed geometry code builds the proposed profile. Spoken readback through TTS remains optional: visual readback is required.
+
+| Step | Operator / app behavior |
+| --- | --- |
+| Identify | “The inside has a groove; the outside bulges.” Highlight INNER_GROOVE or OUTER_BULGE in the cross-section. Qualitative description establishes feature intent, not its millimetre dimensions. |
+| Correct | Operator specifies a measured profile value, or an explicitly labeled design adjustment. “Make the inner groove 0.5 millimetres deeper” is an example adjustment, not a measurement of this specimen. |
+| Preview | Show old/new profile overlay, feature name, units, direction and changed values. Groove depth is radial; increasing it moves the groove root away from the axis and changes its local diameter by twice the radial change. Reject edits that leave no wall or invalidate the profile. |
+| Clarify | “Rounder”, an unknown starting depth, unclear feature or missing units produces a targeted question. No arbitrary curve or dimension is invented. |
+| Confirm | Only a separate “Confirm” after the proposal is visible accepts that pending edit. “Cancel” discards it. “Undo” restores the immediately previous accepted profile. One combined “change it and confirm” utterance creates a proposal only. |
+| Export | Accepted edits invalidate previous downloads. Recompute profile bounds, validate and regenerate through the existing generator; preview the resulting exported STL. |
+
+Client state is only `accepted`, `pending` (nullable) and `previous` (nullable). A pending profile preview is labeled DRAFT; it is not a passed CAD export. Confirmation binds to the displayed proposal, is disabled while another speech request is running, and is cleared by a new edit. Typed controls provide the same confirm/cancel/undo actions. No revision service or database is added.
+
+**Assumption A8:** one axisymmetric, piecewise-linear profile captures enough visible shape for the CAD-only demonstration. If wrong, ask for additional profile evidence or explicitly select the envelope approximation. Keep exact-fit claims out. Synthetic adjustments must be labeled in the exported summary; operator acceptance does not turn a design choice into a measured fact.
 
 ## Integration flow
 
@@ -208,7 +241,8 @@ InspectResult dimensions are initially unconfirmed. A voice answer or visual cor
 Damaged top/side photos + confirmed scale card
   → selected ring + rectified views + surviving-arc fit
   ↔ Nebius interpretation and targeted question
-  ↔ SLNG spoken answer → visible operator confirmation
+  ↔ SLNG spoken correction → highlighted feature + draft profile
+  ↔ separate spoken confirmation / cancel / undo
   → dimensions + observed/explicitly simplified profile
   → fixed CadQuery template → export checks
   → actual STL preview + STEP/STL/summary downloads
@@ -231,13 +265,13 @@ Andrii's raw photographs are local fixture material, not automatically published
 
 | Case | Input | Expected result |
 | --- | --- | --- |
-| **T1 — Broken middle ring** | Actual missing-segment ring, confirmed scale, supported top/side evidence, confirmed dimensions/profile. | Reconstruct complete ring; overlay missing section; newly generated STEP/STL/summary; all five checks pass; approximation/fit status visible. |
+| **T1 — Broken middle ring** | Actual missing-segment ring, confirmed scale, supported top/side evidence; say “inner groove”, specify an explicit test adjustment, preview it, then say “Confirm”. | Correct feature highlights; accepted geometry stays unchanged before confirmation; validated edit updates profile and files. Reconstruct complete ring; overlay missing section; newly generated STEP/STL/summary; all five checks pass; approximation/fit status visible. |
 | **T2 — No trustworthy scale** | Same ring but card dimensions unknown, card partly hidden, or known plane mismatch. | NEEDS_INPUT with scale/recapture question; metric values needing that calibration remain null; generate rejected until supplied. No assumption from card branding. |
 | **T3 — Missing thickness/profile** | Valid top view only; operator requests immediate printing file. | Ask for side view or measured thickness. No default thickness. If profile unresolved, require explicit envelope approximation or more evidence; no exact-fit claim. |
-| **T4 — Spoken-number trap** | “It might be nine or nineteen millimetres; I haven't measured it. Just use nineteen.” | No automatic confirmation or generation. Ask for measurement; display uncertainty even if transcript contains a confident-looking number. A later explicit confirmed measurement updates the right field. |
+| **T4 — Spoken-number trap** | “It might be nine or nineteen millimetres; I haven't measured it. Just use nineteen.” | No automatic confirmation or generation. Ask for measurement; display uncertainty even if transcript contains a confident-looking number. A later explicit confirmed measurement updates the right field. “Do not confirm” must not accept a pending profile; a combined edit-and-confirm utterance must still stop at preview. |
 | **T5 — Wrong geometry hypothesis** | Bent fragment/noncircular washer, wrong selected ring, or a side view of the whole stack. | NEEDS_INPUT/UNSUPPORTED or target correction; do not force circular geometry or use stack height as single-ring thickness. |
 
-Also exercise one provider timeout, microphone denial and edited-dimension preview invalidation. Galtea should search for real variants around T2–T5; preserve the actual failing input and rerun it after the fix. Tests using text fixtures assess downstream decisions, not acoustic accuracy. Show an actual audio→SLNG trace separately. Do not claim five examples establish general industrial performance.
+Also exercise one provider timeout, microphone denial, cancel/undo and edited-profile download invalidation. Galtea should search for real variants around T2–T5; preserve the actual failing input and rerun it after the fix. Tests using text fixtures assess downstream decisions, not acoustic accuracy. Show an actual audio→SLNG trace separately. Do not claim five examples establish general industrial performance.
 
 ## Risks
 
@@ -262,7 +296,7 @@ Also exercise one provider timeout, microphone denial and edited-dimension previ
 | --- | --- | --- |
 | **0:00–0:35** | Show the existing generic 110 kV substation model and point to an accessory category. “Our application is maintenance of legacy substation equipment, where a replacement accessory or its CAD may be difficult to obtain.” | Label the scene generic and the availability problem a hypothesis unless supported by a real example. |
 | **0:35–0:55** | Hold up the broken middle ring. “This simple specimen lets us demonstrate one essential step: recovering missing geometry from photos and an engineer's answers.” | The ring is a lab proxy. It is not a substation-qualified part. |
-| **0:55–2:40** | Run damaged image + card calibration + spoken clarification. Show the surviving arcs, missing segment and confirmed dimensions. | Real Nebius/SLNG calls if working; mark replay/manual corrections openly. |
+| **0:55–2:40** | Run damaged image + card calibration. Say “The inside has a groove”; show the highlighted cross-section, make one explicit profile correction, preview it and say “Confirm”. Show surviving arcs and the restored segment. | Real Nebius/SLNG calls if working; mark replay/manual corrections openly. |
 | **2:40–3:20** | Rotate the generated ring; show restored geometry and actual STEP/STL downloads. | Show independent export checks and any profile approximation. No printer is available; fit and motion are untested. |
 | **3:20–4:00** | Show a genuine Galtea-discovered failure, the fix and rerun. | If no failure was discovered, report that rather than fabricating a story. |
 | **4:00–4:40** | Return to the catalog: “We already have an illustrative component library and draft manufacturing routes. The next stage connects this reconstruction workflow to one verified industrial accessory.” Show polymer AM, CNC metal and sheet-fabrication candidates. | Library records are authored screening proposals, not approved replacements or implemented reconstruction coverage. |
@@ -280,6 +314,7 @@ Every ticket has one named owner, one observable outcome, a testable done-when a
 Project done when:
 
 - [ ] Actual broken middle-ring capture → voice-supported reconstruction → newly generated CAD works from a fresh browser session.
+- [ ] A spoken profile correction highlights the intended feature, previews before acceptance, and supports separate confirm/cancel/undo; no unmeasured adjustment is labeled measured.
 - [ ] Current parameters, preview and downloads agree; STEP/STL independently pass checks.
 - [ ] T1–T5 behave as specified; scale, thickness and uncertainty are not guessed into confirmed values.
 - [ ] No physical-print/fit claim; profile approximation and photo-derived measurement limitations are explicit.

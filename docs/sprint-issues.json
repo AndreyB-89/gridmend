@@ -21,7 +21,7 @@
     "owner": "Valentin",
     "due": "Sat 19:30",
     "title": "[S1][GM-03] Fit surviving ring geometry and generate checked CAD",
-    "body": "**Owner:** Valentin\n**Sprint:** S1\n**Due (Barcelona CEST):** Sat 19:30\n**Dependencies:** GM-01, GM-02\n\n## Done when\n\n- [ ] Rectify a verified card plane and fit surviving inner/outer arcs; manual boundary selection is supported.\n- [ ] Obtain thickness/profile evidence or explicitly label the confirmed rectangular approximation; never seed missing dimensions.\n- [ ] Generate current-parameter STEP/STL, reopen STEP and validate solid/bounds/profile/mesh; produce observed/restored overlay.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Valentin\n**Sprint:** S1\n**Due (Barcelona CEST):** Sat 19:30\n**Dependencies:** GM-01, GM-02\n\n## Done when\n\n- [ ] Rectify a verified card plane and fit surviving inner/outer arcs; manual boundary selection is supported.\n- [ ] Obtain thickness/profile evidence or explicitly label the confirmed rectangular approximation; never seed missing dimensions.\n- [ ] Generate current-parameter STEP/STL, reopen STEP and validate solid/bounds/profile/mesh; produce observed/restored overlay.\n\n- [ ] Represent the observed inner groove and reported outer bulge with one revolved profile; disclose polygon approximation and unknown mating clearance.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-04",
@@ -29,7 +29,7 @@
     "owner": "Mortaza",
     "due": "Sat 19:30",
     "title": "[S1][GM-04] Build capture, SLNG voice answers and dimension-review UI",
-    "body": "**Owner:** Mortaza\n**Sprint:** S1\n**Due (Barcelona CEST):** Sat 19:30\n**Dependencies:** GM-02\n\n## Done when\n\n- [ ] Actual microphone audio reaches SLNG and returns a transcript; preserve a real run and latency.\n- [ ] Operator can review a value and units, confirm it, and see the current parameter update; uncertain speech does not auto-confirm.\n- [ ] UI supports top/side inputs, target/card corrections and clearly labeled mocks; microphone denial/silence have retry/type states.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Mortaza\n**Sprint:** S1\n**Due (Barcelona CEST):** Sat 19:30\n**Dependencies:** GM-02\n\n## Done when\n\n- [ ] Actual microphone audio reaches SLNG and returns a transcript; preserve a real run and latency.\n- [ ] Operator can review a value and units, confirm it, and see the current parameter update; uncertain speech does not auto-confirm.\n- [ ] UI supports top/side inputs, target/card corrections and clearly labeled mocks; microphone denial/silence have retry/type states.\n\n- [ ] Highlight the referenced groove/bulge and show a labeled draft cross-section; separate spoken confirm/cancel/undo act on that visible proposal only.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-05",
@@ -37,7 +37,7 @@
     "owner": "Valentin",
     "due": "Sat 21:00",
     "title": "[S2][GM-05] Connect Nebius interpretation, targeted questions and generation backend",
-    "body": "**Owner:** Valentin\n**Sprint:** S2\n**Due (Barcelona CEST):** Sat 21:00\n**Dependencies:** GM-03, GM-04\n\n## Done when\n\n- [ ] Nebius combines damaged-image observations with reviewed voice answers and requests missing evidence.\n- [ ] POST inspect/generate follow the v2 contract; fixed templates only, bounded inputs and actionable failure responses.\n- [ ] Provide a Galtea callable wrapper for the same dialogue/interpretation path; T2\u2013T5 fixtures remain distinct from acoustic evaluation.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Valentin\n**Sprint:** S2\n**Due (Barcelona CEST):** Sat 21:00\n**Dependencies:** GM-03, GM-04\n\n## Done when\n\n- [ ] Nebius combines damaged-image observations with reviewed voice answers and requests missing evidence.\n- [ ] POST inspect/generate follow the v2 contract; fixed templates only, bounded inputs and actionable failure responses.\n- [ ] Provide a Galtea callable wrapper for the same dialogue/interpretation path; T2\u2013T5 fixtures remain distinct from acoustic evaluation.\n\n- [ ] Implement ProfileEditRequest/Result with bounded feature edits, clarification for missing geometry/units, and validation; never accept a combined edit-and-confirm utterance.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-06",
@@ -45,7 +45,7 @@
     "owner": "Mortaza",
     "due": "Sat 21:00",
     "title": "[S2][GM-06] Integrate damaged photo and voice into preview and CAD downloads",
-    "body": "**Owner:** Mortaza\n**Sprint:** S2\n**Due (Barcelona CEST):** Sat 21:00\n**Dependencies:** GM-03, GM-04\n\n## Done when\n\n- [ ] A fresh browser run completes actual image/voice/parameter/CAD flow without terminal intervention.\n- [ ] Three.js previews the exported STL; STEP/STL/summary downloads belong to current parameters and stale links clear on edits.\n- [ ] Run on the team laptop or an existing controlled host; timeout and generation failure show no false success.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Mortaza\n**Sprint:** S2\n**Due (Barcelona CEST):** Sat 21:00\n**Dependencies:** GM-03, GM-04\n\n## Done when\n\n- [ ] A fresh browser run completes actual image/voice/parameter/CAD flow without terminal intervention.\n- [ ] Three.js previews the exported STL; STEP/STL/summary downloads belong to current parameters and stale links clear on edits.\n- [ ] Run on the team laptop or an existing controlled host; timeout and generation failure show no false success.\n\n- [ ] Accepted profile edits regenerate checked CAD and clear stale downloads; draft previews stay labeled, cancel preserves the accepted model and undo restores one accepted state.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-07",

@@ -52,6 +52,19 @@ export interface GenerateRequest {
   profile_confirmed: boolean;
   purpose: "DEMO_CAD_ONLY";
 }
+export type ProfileFeature = "INNER_GROOVE" | "OUTER_BULGE";
+export interface ProfileEditRequest {
+  accepted: GenerateRequest;
+  reviewed_voice_text: string; // <=2,000 chars; one correction, not confirmation
+}
+export interface ProfileEditResult {
+  feature: ProfileFeature | null;
+  candidate: GenerateRequest | null; // null means clarification required; never auto-confirmed
+  readback: string; // feature, old/new values, units and measurement vs design adjustment
+  question: string | null;
+  limitations: string[]; // preserve with accepted model and include in exported summary
+  trace: Trace;
+}
 export interface CadCheck {
   name: "SOLID" | "DIMENSIONS" | "PROFILE" | "STEP_REIMPORT" | "STL_MESH";
   passed: boolean;

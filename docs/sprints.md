@@ -75,6 +75,8 @@ Attach actual output/test results, commit and peer review.
 - [ ] Obtain thickness/profile evidence or explicitly label the confirmed rectangular approximation; never seed missing dimensions.
 - [ ] Generate current-parameter STEP/STL, reopen STEP and validate solid/bounds/profile/mesh; produce observed/restored overlay.
 
+- [ ] Represent the observed inner groove and reported outer bulge with one revolved profile; disclose polygon approximation and unknown mating clearance.
+
 ## Evidence
 
 Attach actual output/test results, commit and peer review.
@@ -96,6 +98,8 @@ Attach actual output/test results, commit and peer review.
 - [ ] Actual microphone audio reaches SLNG and returns a transcript; preserve a real run and latency.
 - [ ] Operator can review a value and units, confirm it, and see the current parameter update; uncertain speech does not auto-confirm.
 - [ ] UI supports top/side inputs, target/card corrections and clearly labeled mocks; microphone denial/silence have retry/type states.
+
+- [ ] Highlight the referenced groove/bulge and show a labeled draft cross-section; separate spoken confirm/cancel/undo act on that visible proposal only.
 
 ## Evidence
 
@@ -119,6 +123,8 @@ Attach actual output/test results, commit and peer review.
 - [ ] POST inspect/generate follow the v2 contract; fixed templates only, bounded inputs and actionable failure responses.
 - [ ] Provide a Galtea callable wrapper for the same dialogue/interpretation path; T2–T5 fixtures remain distinct from acoustic evaluation.
 
+- [ ] Implement ProfileEditRequest/Result with bounded feature edits, clarification for missing geometry/units, and validation; never accept a combined edit-and-confirm utterance.
+
 ## Evidence
 
 Attach actual output/test results, commit and peer review.
@@ -140,6 +146,8 @@ Attach actual output/test results, commit and peer review.
 - [ ] A fresh browser run completes actual image/voice/parameter/CAD flow without terminal intervention.
 - [ ] Three.js previews the exported STL; STEP/STL/summary downloads belong to current parameters and stale links clear on edits.
 - [ ] Run on the team laptop or an existing controlled host; timeout and generation failure show no false success.
+
+- [ ] Accepted profile edits regenerate checked CAD and clear stale downloads; draft previews stay labeled, cancel preserves the accepted model and undo restores one accepted state.
 
 ## Evidence
 
