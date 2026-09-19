@@ -1,0 +1,15 @@
+{
+  "component_id": "DEMO-PLATE-001",
+  "template_id": "RECT_PLATE_4H_V1",
+  "reference_id": "REF-PLATE-001",
+  "width_mm": 120,
+  "height_mm": 60,
+  "thickness_mm": 4,
+  "hole_diameter_mm": 6,
+  "hole_pitch_x_mm": 90,
+  "hole_pitch_y_mm": 30,
+  "demo_dimensional_tolerance_mm": 0.2,
+  "intended_material_grade": "Aluminium 6061-T6",
+  "material_basis": "DEMO_DRAWING",
+  "service_release": "NOT_APPROVED"
+}

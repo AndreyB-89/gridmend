@@ -1,0 +1,811 @@
+{
+  "revision": "0.2",
+  "status": "DRAFT_ENGINEERING_SCREENING_NOT_TRAINING_GROUND_TRUTH",
+  "processes": [
+    {
+      "id": "AM_POLYMER",
+      "name": "Polymer additive manufacturing",
+      "notes": "Specify extrusion, powder bed or other exact process after requirements are known."
+    },
+    {
+      "id": "AM_METAL",
+      "name": "Metal additive manufacturing",
+      "notes": "Specialist process selection; heat treatment and finish machining may be required."
+    },
+    {
+      "id": "CNC_MILL_TURN",
+      "name": "CNC milling / turning",
+      "notes": "Separate exact milling and turning operations, stock, tooling, workholding and inspection in the process plan."
+    },
+    {
+      "id": "CNC_ROUTING",
+      "name": "CNC routing",
+      "notes": "Process suitability depends on the specific sheet/block material and required finish."
+    },
+    {
+      "id": "SHEET_FABRICATION",
+      "name": "Sheet cutting, bending and joining",
+      "notes": "Select cutting method and include forming, joints, surface treatment and assembly."
+    },
+    {
+      "id": "SPECIALIST_PROCESS",
+      "name": "Other specialist manufacturing",
+      "notes": "Specify casting, moulding, insulation manufacture or another process only with supporting engineering data."
+    }
+  ],
+  "material_families": [
+    {
+      "id": "ENGINEERING_POLYMER",
+      "name": "Engineering polymer",
+      "notes": "Exact grade, flame/thermal/chemical properties and applicable process evidence required."
+    },
+    {
+      "id": "METAL_ALLOY",
+      "name": "Metal alloy",
+      "notes": "Exact alloy, temper/heat treatment, finish, corrosion and electrical requirements required."
+    },
+    {
+      "id": "ELECTRICAL_LAMINATE",
+      "name": "Electrical insulation laminate",
+      "notes": "Exact grade, electrical duty, orientation and environmental properties required; no generic equivalence."
+    },
+    {
+      "id": "TRANSFORMER_WOOD",
+      "name": "Electrical-grade laminated densified wood",
+      "notes": "Specialist transformer material; exact grade and design approval required."
+    },
+    {
+      "id": "TRANSFORMER_PRESSBOARD",
+      "name": "Transformer-grade pressboard",
+      "notes": "Specialist insulation material; purity, moisture and processing requirements apply."
+    },
+    {
+      "id": "WORKSHOP_WOOD",
+      "name": "Ordinary workshop wood / wood-based board",
+      "notes": "For assessed tooling, templates or packaging in this pilot; not a generic installed electrical replacement."
+    },
+    {
+      "id": "OTHER_SPECIFIED",
+      "name": "Other specified material",
+      "notes": "Exact material and application evidence required before route selection."
+    }
+  ],
+  "route_options": [
+    {
+      "id": "TX04-CNC_MILL_TURN",
+      "component_id": "TX04",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Screen engraving/cutting a specified metal identification plate; retain required marking durability.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "TX04-AM_POLYMER",
+      "component_id": "TX04",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Alternative only if the exact material/process meets marking, weathering, temperature and retention requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CB04-CNC_MILL_TURN",
+      "component_id": "CB04",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Screen engraving/cutting a specified metal identification plate; retain required marking durability.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CB04-AM_POLYMER",
+      "component_id": "CB04",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Alternative only if the exact material/process meets marking, weathering, temperature and retention requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "TX05-CNC_MILL_TURN",
+      "component_id": "TX05",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Screen machining an accessory bracket to verified dimensions and mechanical/environmental requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "TX05-SHEET_FABRICATION",
+      "component_id": "TX05",
+      "process_id": "SHEET_FABRICATION",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Alternative if the actual bracket geometry and loads suit cut/bent sheet; verify joints, finish and bonding requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "TX05-AM_METAL",
+      "component_id": "TX05",
+      "process_id": "AM_METAL",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "SPECIALIST_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Specialist alternative if geometry or availability justifies qualification and post-processing.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "SA02-CNC_MILL_TURN",
+      "component_id": "SA02",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Screen machining an accessory bracket to verified dimensions and mechanical/environmental requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "SA02-SHEET_FABRICATION",
+      "component_id": "SA02",
+      "process_id": "SHEET_FABRICATION",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Alternative if the actual bracket geometry and loads suit cut/bent sheet; verify joints, finish and bonding requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "SA02-AM_METAL",
+      "component_id": "SA02",
+      "process_id": "AM_METAL",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "SPECIALIST_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Specialist alternative if geometry or availability justifies qualification and post-processing.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CB03-SHEET_FABRICATION",
+      "component_id": "CB03",
+      "process_id": "SHEET_FABRICATION",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Screen fabrication from specified sheet stock; validate enclosure interfaces, ingress, bonding, corrosion and applicable protection functions.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL01-SHEET_FABRICATION",
+      "component_id": "CTRL01",
+      "process_id": "SHEET_FABRICATION",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Screen fabrication from specified sheet stock; validate enclosure interfaces, ingress, bonding, corrosion and applicable protection functions.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "IT03-SHEET_FABRICATION",
+      "component_id": "IT03",
+      "process_id": "SHEET_FABRICATION",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Metal variant only when consistent with the equipment design and verified gasket/bonding interfaces.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "IT03-CNC_MILL_TURN",
+      "component_id": "IT03",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Polymer variant only with established design and material compatibility; not permission to substitute for metal.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "IT03-AM_POLYMER",
+      "component_id": "IT03",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Print study conditional on appropriate material/process properties and enclosure acceptance tests.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL03-AM_POLYMER",
+      "component_id": "CTRL03",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Low-consequence internal label carrier; verify flame, temperature, fit and retention requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL03-CNC_ROUTING",
+      "component_id": "CTRL03",
+      "process_id": "CNC_ROUTING",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Possible sheet/block fabrication route when the geometry and attachment suit the selected stock.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "AUX03-AM_POLYMER",
+      "component_id": "AUX03",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Low-consequence internal label carrier; verify flame, temperature, fit and retention requirements.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "AUX03-CNC_ROUTING",
+      "component_id": "AUX03",
+      "process_id": "CNC_ROUTING",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Possible sheet/block fabrication route when the geometry and attachment suit the selected stock.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL04-AM_POLYMER",
+      "component_id": "CTRL04",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Candidate for a controlled accessory trial under the catalog use restrictions.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL04-CNC_MILL_TURN",
+      "component_id": "CTRL04",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Alternative machined-polymer route; preserve interfaces and assess grade, creep, heat and mechanical duty.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL05-AM_POLYMER",
+      "component_id": "CTRL05",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Candidate for a controlled accessory trial under the catalog use restrictions.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL05-CNC_MILL_TURN",
+      "component_id": "CTRL05",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Alternative machined-polymer route; preserve interfaces and assess grade, creep, heat and mechanical duty.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL06-SHEET_FABRICATION",
+      "component_id": "CTRL06",
+      "process_id": "SHEET_FABRICATION",
+      "material_family_id": "METAL_ALLOY",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "For an established metal grille design; verify airflow, touch protection, ingress, edges and bonding.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "CTRL06-AM_POLYMER",
+      "component_id": "CTRL06",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "CANDIDATE_FOR_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "For an established polymer frame variant; verify thermal rise, flame, impact and airflow.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "AUX02-AM_POLYMER",
+      "component_id": "AUX02",
+      "process_id": "AM_POLYMER",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "SPECIALIST_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Specialist touch-protection part: electrical, chemical, flame and retention requirements must be established.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    },
+    {
+      "id": "AUX02-CNC_MILL_TURN",
+      "component_id": "AUX02",
+      "process_id": "CNC_MILL_TURN",
+      "material_family_id": "ENGINEERING_POLYMER",
+      "screening_status": "SPECIALIST_REVIEW",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "reason": "Machining is a candidate process only if the exact grade, geometry and function are validated.",
+      "exact_material_grade": null,
+      "required_tolerance_mm": null,
+      "engineering_label_verified": false,
+      "service_release": "NOT_APPROVED",
+      "evidence_level": "AUTHOR_DRAFT_SCREENING",
+      "source_ids": [
+        "M3"
+      ]
+    }
+  ],
+  "component_dispositions": [
+    {
+      "component_id": "TX01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "TX02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "TX03",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "TX04",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "TX05",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "TX06",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CB01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CB02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CB03",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "CB04",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "DS01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "DS02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "DS03",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "IT01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "IT02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "IT03",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "SA01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "SA02",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "BUS01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "BUS02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "BUS03",
+      "disposition": "ENGINEERED_CONVENTIONAL_ROUTE",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CTRL01",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "CTRL02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CTRL03",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "CTRL04",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "CTRL05",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "CTRL06",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "MV01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "MV02",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "MV03",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "AUX01",
+      "disposition": "OEM_OR_SPECIALIST_REVIEW",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "AUX02",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "AUX03",
+      "disposition": "COMPARE_CANDIDATE_ROUTES",
+      "service_release": "NOT_APPROVED",
+      "reason": "Draft candidates; no route selected until functional and manufacturing requirements are verified."
+    },
+    {
+      "component_id": "CIV01",
+      "disposition": "ENGINEERED_CONVENTIONAL_ROUTE",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CIV02",
+      "disposition": "ENGINEERED_CONVENTIONAL_ROUTE",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    },
+    {
+      "component_id": "CIV03",
+      "disposition": "ENGINEERED_CONVENTIONAL_ROUTE",
+      "service_release": "NOT_APPROVED",
+      "reason": "No local manufacturing recommendation in the current pilot; obtain an engineered/OEM or specialist solution."
+    }
+  ],
+  "wood_examples": [
+    {
+      "example": "Workshop positioning fixture or drilling template",
+      "process_id": "CNC_ROUTING",
+      "material_family_id": "WORKSHOP_WOOD",
+      "application_role": "TOOLING_ONLY",
+      "status": "ILLUSTRATIVE_NOT_A_CATALOG_PART",
+      "note": "Verify loads, repeatability and workshop conditions. Never identify this as an installed substation spare."
+    },
+    {
+      "example": "Transformer design using a machined densified-wood support",
+      "process_id": "CNC_ROUTING",
+      "material_family_id": "TRANSFORMER_WOOD",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "status": "SPECIALIST_EXAMPLE_NOT_A_CATALOG_PART",
+      "note": "Actual process, grade, orientation, geometry and transformer design approval remain to be specified.",
+      "source_ids": [
+        "M1"
+      ]
+    },
+    {
+      "example": "Transformer-grade pressboard insulation component",
+      "process_id": "CNC_ROUTING",
+      "material_family_id": "TRANSFORMER_PRESSBOARD",
+      "application_role": "INSTALLED_REPLACEMENT",
+      "status": "SPECIALIST_EXAMPLE_NOT_A_CATALOG_PART",
+      "note": "Routing is an engineering screening hypothesis for suitable shapes; verify material processing, cleanliness, moisture and insulation design.",
+      "source_ids": [
+        "M2"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "M1",
+      "title": "Roechling Lignostone Transformerwood",
+      "url": "https://www.roechling.com/industrial/electrical-industry/transformer/oil-filled-transformers/lignostone-transformerwood-for-transformers",
+      "scope": "Evidence that specialist densified wood and machined components exist for transformer applications; not approval of any catalog part."
+    },
+    {
+      "id": "M2",
+      "title": "Hitachi Energy transformer insulation pressboards",
+      "url": "https://www.hitachienergy.com/us/en/products-and-solutions/insulation-and-components/transformer-insulation-components/insulation-components-and-materials/pressboard",
+      "scope": "Specialist pressboard material/application evidence, not approval of ordinary wood as insulation."
+    },
+    {
+      "id": "M3",
+      "title": "Autodesk advanced manufacturing",
+      "url": "https://www.autodesk.com/solutions/advanced-manufacturing",
+      "scope": "Manufacturing process taxonomy and CAD/CAM capability context; does not validate part-route selections."
+    },
+    {
+      "id": "M4",
+      "title": "Autodesk manufacturing simulation",
+      "url": "https://help.autodesk.com/view/fusion360/ENU/?contextId=MFG-REF-SIMULATION",
+      "scope": "CAM simulation and verification context; not proof of manufacturing safety for an unverified machine setup."
+    }
+  ],
+  "selection_policy": "Identify component, retrieve verified requirements, generate candidate routes, filter by engineering/process constraints, then compare qualified alternatives. Unknown evidence prevents release; no material grade inferred from an image alone."
+}

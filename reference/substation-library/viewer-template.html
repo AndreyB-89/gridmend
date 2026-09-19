@@ -1,0 +1,80 @@
+<div id="substation-explorer">
+  <style>
+    #substation-explorer .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:12px}
+    #substation-explorer .viewport{position:relative;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+    #substation-explorer canvas{display:block;width:100%;height:410px;touch-action:pan-y}
+    #substation-explorer .key{display:flex;flex-wrap:wrap;gap:16px;margin:10px 0}
+    #substation-explorer .key span{display:flex;align-items:center;gap:6px}
+    #substation-explorer .swatch{width:12px;height:12px;display:inline-block}
+    #substation-explorer .detail{padding:12px 0;border-bottom:1px solid var(--border)}
+    #substation-explorer .part-button{background:transparent;color:var(--foreground);border:0;text-align:left;text-decoration:underline;cursor:pointer;padding:5px 0;font:inherit}
+    #substation-explorer .selected-row{background:var(--secondary)}
+    #substation-explorer details{margin-top:12px}
+    #substation-explorer summary{cursor:pointer}
+    #substation-explorer .angle{width:110px}
+    @media(max-width:480px){#substation-explorer canvas{height:330px}#substation-explorer .toolbar>label:first-child{width:100%}}
+  </style>
+  <h3>110/10 kV substation · component explorer</h3>
+  <div class="text-small">Generic schematic · selected subcomponents · no parts approved for service</div>
+  <div class="toolbar">
+    <label class="form-label">Equipment<select class="form-select" id="ss-family"><option value="">Whole substation</option></select></label>
+    <label class="form-label angle">Rotate<input class="form-range" id="ss-angle" type="range" min="-180" max="180" value="-32" aria-label="Rotate model"></label>
+    <label class="form-label angle">Elevation<input class="form-range" id="ss-tilt" type="range" min="15" max="80" value="32" aria-label="Viewing elevation"></label>
+    <label class="form-check"><input class="form-check-input" id="ss-explode" type="checkbox"><span class="form-check-label">Separate parts</span></label>
+  </div>
+  <div class="viewport"><canvas id="ss-canvas" role="img" aria-label="Rotatable schematic 3D substation. Select equipment or component rows for a keyboard-accessible breakdown."></canvas></div>
+  <div class="key text-small">
+    <span><i class="swatch" style="background:var(--green)"></i>Trial candidate</span>
+    <span><i class="swatch" style="background:var(--orange)"></i>Engineering qualification</span>
+    <span><i class="swatch" style="background:var(--muted-foreground)"></i>Excluded from pilot</span>
+  </div>
+  <div id="ss-detail" class="detail" aria-live="polite">Select equipment or a proposed printing candidate.</div>
+  <div id="ss-breakdown"></div>
+  <details open><summary id="ss-shortlist-heading">Proposed printing shortlist</summary><div id="ss-shortlist"></div></details>
+  <script>
+  (()=>{
+    const root=document.getElementById('substation-explorer');
+    const data=/*SCENE_DATA*/;
+    const $=id=>root.querySelector('#'+id),canvas=$('ss-canvas'),ctx=canvas.getContext('2d');
+    const family=$('ss-family'),angle=$('ss-angle'),tilt=$('ss-tilt'),explode=$('ss-explode');
+    const parts=Object.fromEntries(data.parts.map(p=>[p.id,p]));
+    const names={TRIAL:'Trial candidate',QUALIFY:'Engineering qualification',EXCLUDE:'Excluded from pilot'};
+    let selected=null,hits=[],width=736,height=410,theme={};
+    for(const f of data.families){const o=document.createElement('option');o.value=f.id;o.textContent=f.name;family.append(o)}
+    function color(name){const e=document.createElement('span');e.style.color='var('+name+')';root.append(e);const c=getComputedStyle(e).color;e.remove();return c}
+    function themeUpdate(){theme={TRIAL:color('--green'),QUALIFY:color('--orange'),EXCLUDE:color('--muted-foreground'),fg:color('--foreground'),line:color('--border'),bg:color('--background'),active:color('--blue')};draw()}
+    const center=m=>m.vertices.reduce((a,v)=>a.map((x,i)=>x+v[i]/m.vertices.length),[0,0,0]);
+    function visible(){return data.meshes.filter(m=>!family.value||parts[m.part_id].family_id===family.value)}
+    function transformed(m){
+      let shift=[0,0,0];
+      if(explode.checked){const fs=data.parts.filter(p=>p.family_id===parts[m.part_id].family_id),i=fs.findIndex(p=>p.id===m.part_id);shift=[(i%3-1)*8,Math.floor(i/3)*6,Math.floor(i/3)*5]}
+      return m.vertices.map(v=>v.map((n,i)=>n+shift[i]));
+    }
+    function draw(){
+      if(!ctx||!theme.TRIAL)return;
+      const meshes=visible(),raw=meshes.map(m=>({m,v:transformed(m)})),all=raw.flatMap(o=>o.v);
+      const a=Number(angle.value)*Math.PI/180,t=Number(tilt.value)*Math.PI/180;
+      const rot=v=>{const x=v[0]*Math.cos(a)-v[2]*Math.sin(a),z=v[0]*Math.sin(a)+v[2]*Math.cos(a);return[x,-v[1]*Math.cos(t)+z*Math.sin(t),z*Math.cos(t)+v[1]*Math.sin(t)]};
+      const rv=all.map(rot),min=[0,1].map(i=>Math.min(...rv.map(v=>v[i]))),max=[0,1].map(i=>Math.max(...rv.map(v=>v[i]))),scale=Math.min((width-64)/(max[0]-min[0]||1),(height-62)/(max[1]-min[1]||1));
+      const project=v=>{const r=rot(v);return[(r[0]-(min[0]+max[0])/2)*scale+width/2,(r[1]-(min[1]+max[1])/2)*scale+height/2,r[2]]};
+      ctx.clearRect(0,0,width,height);hits=[];const faces=[];
+      for(const {m,v} of raw){const pp=v.map(project);for(const face of m.faces){const pts=face.map(i=>pp[i]);faces.push({pts,depth:pts.reduce((s,p)=>s+p[2],0)/pts.length,id:m.part_id,shade:face.length===4?.9:1})}}
+      faces.sort((a,b)=>a.depth-b.depth);
+      for(const f of faces){const p=parts[f.id],active=selected===f.id;
+        ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+        ctx.globalAlpha=selected&&!active?.48:1;ctx.fillStyle=theme[p.am_screening];ctx.fill();ctx.strokeStyle=active?theme.active:theme.bg;ctx.lineWidth=active?1.8:.5;ctx.stroke();ctx.globalAlpha=1;hits.push(f);
+      }
+      if(!family.value&&!explode.checked){ctx.font=getComputedStyle(root).font;ctx.fillStyle=theme.fg;ctx.textAlign='center';for(const f of data.families.filter(f=>f.id!=='CIV')){const p=project([f.center[0],8.5,f.center[2]]);ctx.fillText(f.id,p[0],p[1])}}
+    }
+    function table(list){const div=document.createElement('div');div.className='table-responsive';const table=document.createElement('table');table.className='table table-sm';table.innerHTML='<thead><tr><th>Component</th><th>Screening</th></tr></thead>';const body=document.createElement('tbody');
+      for(const p of list){const row=document.createElement('tr');row.dataset.part=p.id;const cell=document.createElement('td'),btn=document.createElement('button');btn.className='part-button';btn.type='button';btn.textContent=p.id+' · '+p.name;btn.onclick=()=>select(p.id);cell.append(btn);const status=document.createElement('td');status.textContent=names[p.am_screening];row.append(cell,status);body.append(row)}table.append(body);div.append(table);return div}
+    function breakdown(){const b=$('ss-breakdown');b.replaceChildren();if(family.value){const h=document.createElement('h3');h.textContent=data.families.find(f=>f.id===family.value).name;b.append(h,table(data.parts.filter(p=>p.family_id===family.value)))}}
+    function select(id){selected=id;const p=parts[id];family.value=p.family_id;breakdown();const d=$('ss-detail');d.replaceChildren();const title=document.createElement('strong');title.textContent=p.name+' · '+names[p.am_screening];const reason=document.createElement('div');reason.textContent=p.rationale;const process=document.createElement('div');process.textContent='Process: '+p.proposed_process;const checks=document.createElement('div');checks.textContent='Release evidence needed: '+p.required_checks;d.append(title,reason,process,checks);for(const row of root.querySelectorAll('[data-part]'))row.classList.toggle('selected-row',row.dataset.part===id);draw()}
+    family.onchange=()=>{selected=null;breakdown();$('ss-detail').textContent=family.value?'Select a component for its screening rationale and required evidence.':'Select equipment or a proposed printing candidate.';draw()};angle.oninput=tilt.oninput=explode.onchange=draw;
+    canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;for(let i=hits.length-1;i>=0;i--){const f=hits[i];ctx.beginPath();f.pts.forEach((p,j)=>j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();if(ctx.isPointInPath(x*devicePixelRatio,y*devicePixelRatio)){select(f.id);return}}});
+    const shortlist=data.parts.filter(p=>p.am_screening!=='EXCLUDE');$('ss-shortlist').append(table(shortlist));$('ss-shortlist-heading').textContent='Proposed printing shortlist · '+shortlist.length+' component types';
+    new ResizeObserver(()=>{const r=canvas.getBoundingClientRect();width=r.width;height=r.height;canvas.width=Math.round(width*devicePixelRatio);canvas.height=Math.round(height*devicePixelRatio);ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);draw()}).observe(canvas);
+    new MutationObserver(themeUpdate).observe(document.documentElement,{attributes:true,attributeFilter:['class','style','data-theme']});themeUpdate();
+  })();
+  </script>
+</div>
