@@ -1,8 +1,21 @@
-# 110 kV substation component library — concept v0.2
+# 110 kV substation component library — explorer v0.3
 
 This is an R&D demonstrator of a generic outdoor 110/10 kV substation. It contains a schematic 3D scene, ten equipment families and 36 component-type records. It is not a specific MODUS X, DTEK or GreenEnergy asset. No real station documents were used.
 
 The confirmed next use case is phone-camera-assisted damage recognition followed by generation of dimensioned CAD for the specific replacement component and preparation for an appropriate manufacturing route: additive manufacturing, CNC machining/routing, sheet fabrication or specialist production. See `vision-prototype-brief.md` for the proposed camera-to-CAD workflow and `manufacturing-routing.md` for the expanded process/material classification. The camera, reconstruction and production workflow is not implemented yet. The original v0.1 ZIP remains the earlier model/catalog snapshot.
+
+## Open the explorer
+
+Open [substation-explorer.html](../substation-explorer.html) in a browser after cloning or downloading the repository. It is self-contained: no server, npm install, sponsor credentials or external JavaScript is needed. GitHub's file page shows source; download the HTML to run it locally.
+
+- Rotate or separate the schematic parts; select a component from the model or accessible list.
+- Filter by equipment, name/ID, 3D-print candidate, CNC candidate, fabrication candidate, supplier or engineered contractor.
+- A component may have multiple candidate routes. Summary counts overlap and are not station quantities or reproducibility percentages.
+- Details show actual process/material alternatives, required engineering evidence and whether AI-assisted replacement CAD is a roadmap candidate.
+- Download a component JSON brief with route records and explicit unknowns. This is not a CAD download; manufacturing CAD is absent for these entries.
+- Supplier-only markings mean no local manufacturing recommendation in this pilot. Procurement remains possible for candidate accessories too. Civil structures/earthing/supports retain a separate engineered-contractor disposition.
+
+Rebuild only the explorer with `python3 reference/substation-library/build_explorer.py` from the repository root. To regenerate all source catalogs and the database, run `build.py` then `expand_manufacturing_routes.py`; both refresh the viewer. The full generator expects the committed route catalog to exist.
 
 ## Deliverables
 
@@ -12,7 +25,7 @@ The confirmed next use case is phone-camera-assisted damage recognition followed
 - `scene.json`: catalog plus the schematic mesh geometry used by the viewer.
 - `build.py` and `viewer-template.html`: reproducible source.
 - `manufacturing-routes.json` and `manufacturing-routes.csv`: draft process/material options linked to component IDs. These are also stored in the additional manufacturing tables in `components.sqlite`.
-- `expand_manufacturing_routes.py`: run after `build.py` to regenerate the manufacturing extensions. Six process families, seven material families and twenty-seven draft route options are included. The existing viewer retains its AM-only screening display.
+- `expand_manufacturing_routes.py`: run after `build.py` to regenerate the manufacturing extensions. Six process families, seven material families and twenty-seven draft route options are included. The explorer displays these routes alongside supplier and engineered-contractor dispositions.
 
 ## Meaning of the classifications
 
@@ -24,7 +37,7 @@ The shortlist is an author screening proposal, not an OEM-approved spare list. S
 
 The model breaks equipment into selected visible accessories and simplified functional assemblies. Internal windings, interrupters, terminals and electronics are simplified blocks or assemblies, not individual manufacturing parts. Small accessories are exaggerated for selection. Civil structures are illustrative. Conductors between bays, protection circuits, complete MV/DC systems, fencing and other detailed design elements are omitted. Do not infer a valid single-line diagram, safe electrical clearances, a complete station BOM, equipment quantities, fault duties, power ratings or constructability.
 
-The glTF colors encode screening: green = TRIAL, orange = QUALIFY, gray = EXCLUDE. The viewer uses the same component IDs and classifications.
+The glTF colors encode screening: green = TRIAL, orange = QUALIFY, gray = EXCLUDE. The updated HTML viewer uses the same component IDs but colors by manufacturing/procurement route; the glTF retains historical AM screening colors.
 
 ## Turning this into an operational library
 
@@ -49,3 +62,7 @@ Initial exclusion scope includes primary HV insulation, live contacts and conduc
 - DNV-ST-B203: https://www.dnv.com/energy/standards-guidelines/dnv-st-b203-additive-manufacturing
 
 Consulted 2026-09-19. No source certifies this model or its component assessments.
+
+## Verification
+
+With Playwright available to Node and Chrome installed, run `node scripts/check_substation_explorer.cjs` from the repo root. It checks route/family/search filters, overlapping routes, supplier-only exclusions, reset/empty state, JSON download content, mobile overflow and browser errors. Screenshots and the downloaded brief are saved in a temporary directory printed by the check.

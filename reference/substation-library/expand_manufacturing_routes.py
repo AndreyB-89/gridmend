@@ -97,3 +97,7 @@ with sqlite3.connect(OUT/'components.sqlite') as db:
     assert db.execute("SELECT COUNT(*) FROM manufacturing_route_options WHERE service_release != 'NOT_APPROVED' OR engineering_label_verified != 0").fetchone()[0]==0
     assert db.execute("SELECT COUNT(*) FROM manufacturing_route_options WHERE material_family_id='WORKSHOP_WOOD' AND application_role='INSTALLED_REPLACEMENT'").fetchone()[0]==0
 print(json.dumps(dict(components_with_dispositions=len(dispositions),route_options=len(options),component_types_with_candidates=len({o['component_id'] for o in options}),processes=len(processes),material_families=len(materials),integrity='passed',all_routes_unapproved=True)))
+
+# Keep the explorer synchronized with regenerated route exports.
+import runpy
+runpy.run_path(str(OUT / "build_explorer.py"))

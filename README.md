@@ -6,7 +6,7 @@ HackBarna AI Summit Barcelona 2026 R&D demonstrator for damaged substation acces
 
 ## Current status
 
-Repository starter: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. The integrated web app, sponsor API connections and manufacturing CAD generator are **not implemented yet**.
+Repository starter with a working standalone substation route explorer: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. The integrated web app, sponsor API connections and manufacturing CAD generator are **not implemented yet**.
 
 ## Start here
 
@@ -19,6 +19,8 @@ Repository starter: revised middle-ring project plan, small TypeScript contract 
 ## Substation application and roadmap
 
 The existing generic 110/10 kV substation model and component library remain part of GridMend: **36 illustrative component records and 27 draft manufacturing options across 13 records**. They provide the context for future identification and selection of 3D-printing, CNC, sheet-fabrication or specialist routes. The options are engineering-review candidates, not approved spares or current reconstruction coverage.
+
+Open the [component explorer](reference/substation-explorer.html) locally in a browser (download the HTML from GitHub first). It includes route filters, process/material details, supplier dispositions and component-brief downloads. See [viewer instructions](reference/substation-library/README.md#open-the-explorer).
 
 The ring is a simple physical demonstration of the photo-and-voice-to-CAD step. Next comes one verified industrial accessory and a manufactured/inspected specimen. See the [product roadmap](docs/roadmap.md) and [five-minute pitch](docs/pitch.md).
 

@@ -1,48 +1,44 @@
-<div id="substation-explorer">
-  <style>
-    #substation-explorer .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:12px}
-    #substation-explorer .viewport{position:relative;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-    #substation-explorer canvas{display:block;width:100%;height:410px;touch-action:pan-y}
-    #substation-explorer .key{display:flex;flex-wrap:wrap;gap:16px;margin:10px 0}
-    #substation-explorer .key span{display:flex;align-items:center;gap:6px}
-    #substation-explorer .swatch{width:12px;height:12px;display:inline-block}
-    #substation-explorer .detail{padding:12px 0;border-bottom:1px solid var(--border)}
-    #substation-explorer .part-button{background:transparent;color:var(--foreground);border:0;text-align:left;text-decoration:underline;cursor:pointer;padding:5px 0;font:inherit}
-    #substation-explorer .selected-row{background:var(--secondary)}
-    #substation-explorer details{margin-top:12px}
-    #substation-explorer summary{cursor:pointer}
-    #substation-explorer .angle{width:110px}
-    @media(max-width:480px){#substation-explorer canvas{height:330px}#substation-explorer .toolbar>label:first-child{width:100%}}
-  </style>
-  <h3>110/10 kV substation · component explorer</h3>
-  <div class="text-small">Generic schematic · selected subcomponents · no parts approved for service</div>
-  <div class="toolbar">
-    <label class="form-label">Equipment<select class="form-select" id="ss-family"><option value="">Whole substation</option></select></label>
-    <label class="form-label angle">Rotate<input class="form-range" id="ss-angle" type="range" min="-180" max="180" value="-32" aria-label="Rotate model"></label>
-    <label class="form-label angle">Elevation<input class="form-range" id="ss-tilt" type="range" min="15" max="80" value="32" aria-label="Viewing elevation"></label>
-    <label class="form-check"><input class="form-check-input" id="ss-explode" type="checkbox"><span class="form-check-label">Separate parts</span></label>
-  </div>
-  <div class="viewport"><canvas id="ss-canvas" role="img" aria-label="Rotatable schematic 3D substation. Select equipment or component rows for a keyboard-accessible breakdown."></canvas></div>
-  <div class="key text-small">
-    <span><i class="swatch" style="background:var(--green)"></i>Trial candidate</span>
-    <span><i class="swatch" style="background:var(--orange)"></i>Engineering qualification</span>
-    <span><i class="swatch" style="background:var(--muted-foreground)"></i>Excluded from pilot</span>
-  </div>
-  <div id="ss-detail" class="detail" aria-live="polite">Select equipment or a proposed printing candidate.</div>
-  <div id="ss-breakdown"></div>
-  <details open><summary id="ss-shortlist-heading">Proposed printing shortlist</summary><div id="ss-shortlist"></div></details>
-  <script>
-  (()=>{
-    const root=document.getElementById('substation-explorer');
-    const data=/*SCENE_DATA*/;
-    const $=id=>root.querySelector('#'+id),canvas=$('ss-canvas'),ctx=canvas.getContext('2d');
-    const family=$('ss-family'),angle=$('ss-angle'),tilt=$('ss-tilt'),explode=$('ss-explode');
-    const parts=Object.fromEntries(data.parts.map(p=>[p.id,p]));
-    const names={TRIAL:'Trial candidate',QUALIFY:'Engineering qualification',EXCLUDE:'Excluded from pilot'};
-    let selected=null,hits=[],width=736,height=410,theme={};
-    for(const f of data.families){const o=document.createElement('option');o.value=f.id;o.textContent=f.name;family.append(o)}
-    function color(name){const e=document.createElement('span');e.style.color='var('+name+')';root.append(e);const c=getComputedStyle(e).color;e.remove();return c}
-    function themeUpdate(){theme={TRIAL:color('--green'),QUALIFY:color('--orange'),EXCLUDE:color('--muted-foreground'),fg:color('--foreground'),line:color('--border'),bg:color('--background'),active:color('--blue')};draw()}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GridMend · Substation component explorer</title>
+<style>
+:root{--background:#f6f8fc;--foreground:#15283e;--border:#dbe3ec;--secondary:#e8eff8;--green:#13856c;--orange:#b86413;--muted-foreground:#728095;--blue:#346cdb}
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--foreground);font:15px/1.55 system-ui,sans-serif}main{max-width:1450px;margin:auto;padding:32px}h1{font-size:32px;letter-spacing:-1px;margin:8px 0}h2{font-size:19px}h3{font-size:16px;margin:12px 0 6px}.eyebrow{font-size:12px;letter-spacing:2px;color:#13856c;font-weight:750}.muted{color:#53677f}.intro{max-width:940px;margin-bottom:22px}.toolbar{display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin:18px 0}label{display:grid;gap:5px;font-size:12px;font-weight:650}select,input,button{font:inherit}select,input[type=search]{padding:9px;border:1px solid var(--border);border-radius:7px;background:white;color:inherit}button{cursor:pointer;background:white;color:inherit;border:1px solid var(--border);border-radius:7px;padding:8px 12px}button:focus-visible,a:focus-visible{outline:3px solid #346cdb;outline-offset:2px}.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.stat{padding:15px;background:white;border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:8px;text-align:left}.stat strong{display:block;font-size:26px}.stat[aria-pressed=true]{outline:2px solid var(--accent)}.layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(330px,1fr);gap:20px}.panel{background:white;border:1px solid var(--border);border-radius:12px;padding:18px;min-width:0}.viewport{overflow:hidden;background:linear-gradient(#fafcff,#edf2f8);border-radius:8px}canvas{display:block;width:100%;height:460px}.key{display:flex;flex-wrap:wrap;gap:14px;margin:12px 0;font-size:12px}.swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}.angle{width:130px}.check{display:flex;align-items:center}.table-responsive{overflow:auto;max-height:430px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}th{position:sticky;top:0;background:#f2f6fb;z-index:1}.part-button{border:0;background:none;padding:0;text-align:left;color:#245ab3}.selected-row{background:#e8eff8}.badge{display:inline-block;border-radius:5px;padding:3px 7px;margin:2px 4px 2px 0;font-size:11px;font-weight:650;background:#edf2f7}.route-card{padding:12px 0;border-top:1px solid var(--border)}.notice{padding:12px;background:#fff6e5;border-left:3px solid #b86413;margin:14px 0;font-size:13px}.detail p{margin:9px 0}.detail ul{padding-left:20px}details{margin:20px 0}summary{cursor:pointer;font-weight:650}footer{margin-top:24px;font-size:12px}.empty{padding:20px;color:#53677f}@media(max-width:900px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}main{padding:18px}canvas{height:360px}}@media(max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}h1{font-size:26px}.toolbar>label{max-width:100%}select{max-width:100%}}
+</style></head><body><main id="substation-explorer">
+<div class="eyebrow">GRIDMEND / INDUSTRIAL ROADMAP</div><h1>110 kV substation component explorer</h1>
+<p class="intro muted">Explore a generic 110/10 kV station. Select a component to compare 3D printing, CNC, fabrication and procurement routes, and see what an AI-assisted replacement model would still need.</p>
+<div id="ss-stats" class="stats" aria-label="Filter by manufacturing route"></div>
+<p class="muted" style="font-size:12px">Counts are component types in this illustrative catalog, not installed quantities or a percentage of a real station. Manufacturing alternatives overlap. Colors show the first listed route; selecting a route highlights its candidates.</p>
+<div class="toolbar">
+<label>Equipment<select id="ss-family"><option value="">Whole substation</option></select></label>
+<label>Manufacturing route<select id="ss-route"><option value="">All routes</option></select></label>
+<label>Find component<input id="ss-search" type="search" placeholder="Name or component ID"></label>
+<button id="ss-reset" type="button">Reset view</button>
+</div>
+<div class="layout"><section class="panel"><div class="viewport"><canvas id="ss-canvas" role="img" aria-label="Rotatable schematic substation. Use the component list below to select parts by keyboard."></canvas></div>
+<div class="toolbar"><label class="angle">Rotate<input id="ss-angle" type="range" min="-180" max="180" value="-32"></label><label class="angle">Elevation<input id="ss-tilt" type="range" min="15" max="80" value="32"></label><label class="check"><input id="ss-explode" type="checkbox">Separate parts</label></div>
+<div id="ss-key" class="key"></div><h2 id="ss-list-heading">Components</h2><div id="ss-breakdown"></div></section>
+<aside class="panel detail" id="ss-detail" aria-live="polite"></aside></div>
+<details><summary>Wood, tooling and specialist transformer materials</summary><p>Ordinary wood is a tooling-only candidate in this pilot. Electrical-grade transformer wood and pressboard require separate specialist design and material approval; they are not interchangeable with plywood or MDF.</p><div id="ss-wood"></div></details>
+<div class="notice"><strong>Engineering screening · no service-approved replacements.</strong> The colored model is schematic, not manufacturing CAD. All route labels are draft proposals. AI-generated shape alone does not establish material, tolerances, electrical suitability or release. The broken-ring demo is a separate CAD reconstruction experiment; substation reconstruction is roadmap work.</div>
+<footer>Sources support equipment/process context, not approval of individual candidates: <a href="https://www.hitachienergy.com/products-and-solutions/high-voltage-switchgear-and-breakers/air-insulated-switchgear">Hitachi Energy AIS</a> · <a href="https://www.ul.com/services/ul-blue-card-plastics-additive-manufacturing">UL additive-manufacturing materials</a> · <a href="https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/roadmap.md">GridMend roadmap</a></footer>
+<script>
+(()=>{
+const root=document.getElementById('substation-explorer'),data=/*SCENE_DATA*/,manufacturing=/*ROUTE_DATA*/;
+const $=id=>document.getElementById(id),canvas=$('ss-canvas'),ctx=canvas.getContext('2d');
+const family=$('ss-family'),route=$('ss-route'),search=$('ss-search'),angle=$('ss-angle'),tilt=$('ss-tilt'),explode=$('ss-explode');
+const parts=Object.fromEntries(data.parts.map(p=>[p.id,p])),options=manufacturing.route_options;
+const processes=Object.fromEntries(manufacturing.processes.map(p=>[p.id,p])),materials=Object.fromEntries(manufacturing.material_families.map(p=>[p.id,p]));
+const dispositions=Object.fromEntries(manufacturing.component_dispositions.map(p=>[p.component_id,p]));
+const processCategory={AM_POLYMER:'PRINT',AM_METAL:'PRINT',CNC_MILL_TURN:'CNC',CNC_ROUTING:'CNC',SHEET_FABRICATION:'FABRICATE'};
+const labels={PRINT:'3D-print candidate',CNC:'CNC candidate',FABRICATE:'Fabrication candidate',SUPPLIER:'Buy / specialist supplier',ENGINEERED:'Engineered contractor'};
+const palette={PRINT:'#13856c',CNC:'#346cdb',FABRICATE:'#b86413',SUPPLIER:'#728095',ENGINEERED:'#8855ad'};
+const routesFor=p=>options.filter(o=>o.component_id===p.id);
+function categories(p){const values=[...new Set(routesFor(p).map(o=>processCategory[o.process_id]||'SUPPLIER'))];return values.length?values:[dispositions[p.id].disposition==='ENGINEERED_CONVENTIONAL_ROUTE'?'ENGINEERED':'SUPPLIER']}
+function matches(p){return (!family.value||p.family_id===family.value)&&(!route.value||categories(p).includes(route.value))&&(!search.value||(`${p.id} ${p.name}`).toLowerCase().includes(search.value.toLowerCase()))}
+const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e};
+let selected=null,hits=[],width=736,height=460,theme={...palette,fg:'#15283e',line:'#dbe3ec',bg:'#f6f8fc',active:'#0c254c'};
+for(const f of data.families){const o=el('option',f.name);o.value=f.id;family.append(o)}
+for(const [key,label] of Object.entries(labels)){const o=el('option',label);o.value=key;route.append(o);const count=data.parts.filter(p=>categories(p).includes(key)).length;const b=el('button',undefined,'stat');b.type='button';b.dataset.route=key;b.style.setProperty('--accent',palette[key]);b.setAttribute('aria-pressed','false');b.append(el('strong',String(count)),el('span',label));b.onclick=()=>{route.value=route.value===key?'':key;refresh()};$('ss-stats').append(b);const legend=el('span');const swatch=el('i',undefined,'swatch');swatch.style.background=palette[key];legend.append(swatch,document.createTextNode(label));$('ss-key').append(legend)}
     const center=m=>m.vertices.reduce((a,v)=>a.map((x,i)=>x+v[i]/m.vertices.length),[0,0,0]);
     function visible(){return data.meshes.filter(m=>!family.value||parts[m.part_id].family_id===family.value)}
     function transformed(m){
@@ -51,7 +47,7 @@
       return m.vertices.map(v=>v.map((n,i)=>n+shift[i]));
     }
     function draw(){
-      if(!ctx||!theme.TRIAL)return;
+      if(!ctx||!theme.PRINT)return;
       const meshes=visible(),raw=meshes.map(m=>({m,v:transformed(m)})),all=raw.flatMap(o=>o.v);
       const a=Number(angle.value)*Math.PI/180,t=Number(tilt.value)*Math.PI/180;
       const rot=v=>{const x=v[0]*Math.cos(a)-v[2]*Math.sin(a),z=v[0]*Math.sin(a)+v[2]*Math.cos(a);return[x,-v[1]*Math.cos(t)+z*Math.sin(t),z*Math.cos(t)+v[1]*Math.sin(t)]};
@@ -62,19 +58,26 @@
       faces.sort((a,b)=>a.depth-b.depth);
       for(const f of faces){const p=parts[f.id],active=selected===f.id;
         ctx.beginPath();f.pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
-        ctx.globalAlpha=selected&&!active?.48:1;ctx.fillStyle=theme[p.am_screening];ctx.fill();ctx.strokeStyle=active?theme.active:theme.bg;ctx.lineWidth=active?1.8:.5;ctx.stroke();ctx.globalAlpha=1;hits.push(f);
+        ctx.globalAlpha=!matches(p)?.09:selected&&!active?.38:1;ctx.fillStyle=theme[route.value&&matches(p)?route.value:categories(p)[0]];ctx.fill();ctx.strokeStyle=active?theme.active:theme.bg;ctx.lineWidth=active?1.8:.5;ctx.stroke();ctx.globalAlpha=1;hits.push(f);
       }
       if(!family.value&&!explode.checked){ctx.font=getComputedStyle(root).font;ctx.fillStyle=theme.fg;ctx.textAlign='center';for(const f of data.families.filter(f=>f.id!=='CIV')){const p=project([f.center[0],8.5,f.center[2]]);ctx.fillText(f.id,p[0],p[1])}}
     }
-    function table(list){const div=document.createElement('div');div.className='table-responsive';const table=document.createElement('table');table.className='table table-sm';table.innerHTML='<thead><tr><th>Component</th><th>Screening</th></tr></thead>';const body=document.createElement('tbody');
-      for(const p of list){const row=document.createElement('tr');row.dataset.part=p.id;const cell=document.createElement('td'),btn=document.createElement('button');btn.className='part-button';btn.type='button';btn.textContent=p.id+' · '+p.name;btn.onclick=()=>select(p.id);cell.append(btn);const status=document.createElement('td');status.textContent=names[p.am_screening];row.append(cell,status);body.append(row)}table.append(body);div.append(table);return div}
-    function breakdown(){const b=$('ss-breakdown');b.replaceChildren();if(family.value){const h=document.createElement('h3');h.textContent=data.families.find(f=>f.id===family.value).name;b.append(h,table(data.parts.filter(p=>p.family_id===family.value)))}}
-    function select(id){selected=id;const p=parts[id];family.value=p.family_id;breakdown();const d=$('ss-detail');d.replaceChildren();const title=document.createElement('strong');title.textContent=p.name+' · '+names[p.am_screening];const reason=document.createElement('div');reason.textContent=p.rationale;const process=document.createElement('div');process.textContent='Process: '+p.proposed_process;const checks=document.createElement('div');checks.textContent='Release evidence needed: '+p.required_checks;d.append(title,reason,process,checks);for(const row of root.querySelectorAll('[data-part]'))row.classList.toggle('selected-row',row.dataset.part===id);draw()}
-    family.onchange=()=>{selected=null;breakdown();$('ss-detail').textContent=family.value?'Select a component for its screening rationale and required evidence.':'Select equipment or a proposed printing candidate.';draw()};angle.oninput=tilt.oninput=explode.onchange=draw;
-    canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;for(let i=hits.length-1;i>=0;i--){const f=hits[i];ctx.beginPath();f.pts.forEach((p,j)=>j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();if(ctx.isPointInPath(x*devicePixelRatio,y*devicePixelRatio)){select(f.id);return}}});
-    const shortlist=data.parts.filter(p=>p.am_screening!=='EXCLUDE');$('ss-shortlist').append(table(shortlist));$('ss-shortlist-heading').textContent='Proposed printing shortlist · '+shortlist.length+' component types';
-    new ResizeObserver(()=>{const r=canvas.getBoundingClientRect();width=r.width;height=r.height;canvas.width=Math.round(width*devicePixelRatio);canvas.height=Math.round(height*devicePixelRatio);ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);draw()}).observe(canvas);
-    new MutationObserver(themeUpdate).observe(document.documentElement,{attributes:true,attributeFilter:['class','style','data-theme']});themeUpdate();
-  })();
-  </script>
-</div>
+
+function badges(p){const cell=el('div');for(const c of categories(p)){const b=el('span',labels[c],'badge');b.style.color=palette[c];cell.append(b)}return cell}
+function table(list){const wrapper=el('div',undefined,'table-responsive'),t=el('table');t.innerHTML='<thead><tr><th>Component</th><th>Candidate / procurement route</th></tr></thead>';const body=el('tbody');for(const p of list){const row=el('tr');row.dataset.part=p.id;row.classList.toggle('selected-row',selected===p.id);const cell=el('td'),btn=el('button',p.id+' · '+p.name,'part-button');btn.type='button';btn.onclick=()=>select(p.id);cell.append(btn);const status=el('td');status.append(badges(p));row.append(cell,status);body.append(row)}t.append(body);wrapper.append(t);return wrapper}
+function breakdown(){const list=data.parts.filter(matches);$('ss-list-heading').textContent=`Components · ${list.length} of ${data.parts.length}`;$('ss-breakdown').replaceChildren(list.length?table(list):el('p','No components match these filters. Reset the view or change your search.','empty'))}
+function welcome(){$('ss-detail').replaceChildren(el('div','COMPONENT DETAIL','eyebrow'),el('h2','Select a component'),el('p','Click the model or a component name to inspect available route alternatives, material families and missing engineering evidence.'),el('p','Supplier procurement remains an option for candidate parts. “Buy / specialist supplier” means no local manufacturing route is proposed in this pilot.','muted'))}
+function select(id){const p=parts[id];if(!matches(p))return;selected=id;breakdown();const d=$('ss-detail');d.replaceChildren(el('div',p.id+' / '+data.families.find(f=>f.id===p.family_id).name,'eyebrow'),el('h2',p.name),badges(p));const opts=routesFor(p);d.append(el('p',opts.length?'Compare candidate routes; procurement remains available.':'Use an OEM, specialist supplier or engineered contractor for this pilot.'));d.append(el('p',p.rationale,'muted'));
+for(const o of opts){const card=el('div',undefined,'route-card');card.append(el('h3',processes[o.process_id].name),el('p','Material: '+materials[o.material_family_id].name+' · exact grade unverified'),el('p',o.reason,'muted'));if(o.screening_status==='SPECIALIST_REVIEW')card.append(el('span','Specialist review required','badge'));d.append(card)}
+if(!opts.length)d.append(el('p',dispositions[id].reason,'route-card'));
+d.append(el('h3','AI-assisted model → manufacturing'),el('p',opts.length?'Roadmap candidate: capture this exact variant, confirm dimensions and interfaces, then generate and review replacement CAD. No manufacturing model exists for this catalog entry.':'AI may support damage records, part identification and a supplier brief. Local replacement CAD is outside this pilot for this component.'));
+const needs=el('ul');for(const text of ['Exact equipment variant / part number: unknown','Verified dimensions, tolerances and material grade: missing','Manufacturing CAD and inspection evidence: missing'])needs.append(el('li',text));d.append(needs,el('p','Required checks: '+p.required_checks),el('p','Service release: NOT_APPROVED','notice'));
+const btn=el('button','Download component brief (JSON)');btn.type='button';btn.onclick=()=>{const brief={component:p,manufacturing_routes:opts,disposition:dispositions[id],ai_reconstruction:{status:opts.length?'ROADMAP_CANDIDATE':'OUTSIDE_LOCAL_REPLACEMENT_PILOT',geometry_basis:'SCHEMATIC_NOT_MANUFACTURING_CAD',manufacturing_cad_uri:null},service_release:'NOT_APPROVED'};const url=URL.createObjectURL(new Blob([JSON.stringify(brief,null,2)],{type:'application/json'}));const a=el('a');a.href=url;a.download='gridmend-'+id+'-brief.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};d.append(btn);draw()}
+function refresh(){if(selected&&!matches(parts[selected]))selected=null;breakdown();if(!selected)welcome();for(const b of $('ss-stats').children)b.setAttribute('aria-pressed',String(b.dataset.route===route.value));draw()}
+family.onchange=route.onchange=refresh;search.oninput=refresh;angle.oninput=tilt.oninput=explode.onchange=draw;
+$('ss-reset').onclick=()=>{family.value=route.value=search.value='';angle.value=-32;tilt.value=32;explode.checked=false;selected=null;refresh()};
+canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;for(let i=hits.length-1;i>=0;i--){const f=hits[i];if(!matches(parts[f.id]))continue;ctx.beginPath();f.pts.forEach((p,j)=>j?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();if(ctx.isPointInPath(x*devicePixelRatio,y*devicePixelRatio)){select(f.id);return}}});
+for(const w of manufacturing.wood_examples){const row=el('div',undefined,'route-card');row.append(el('h3',w.example),el('p',w.application_role==='TOOLING_ONLY'?'CNC routing · workshop tooling only':'Specialist example · not a catalog part'),el('p',w.note,'muted'));$('ss-wood').append(row)}
+new ResizeObserver(()=>{const r=canvas.getBoundingClientRect();width=r.width;height=r.height;canvas.width=Math.round(width*devicePixelRatio);canvas.height=Math.round(height*devicePixelRatio);ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);draw()}).observe(canvas);refresh();
+})();
+</script></main></body></html>

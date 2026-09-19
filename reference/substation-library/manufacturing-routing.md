@@ -53,7 +53,7 @@ Current route labels are AUTHOR_DRAFT_SCREENING with engineering_label_verified 
 
 CNC output requires a selected machine/controller, stock, cutters, workholding, coordinate system, toolpaths and compatible postprocessor. Validate reachability, collisions, remaining stock and setup assumptions before a manufacturing release. A generic STEP file is a design exchange file, not a complete machine program. For printing, use the corresponding printer/material/build setup. A prototype bench specimen and an installed spare have distinct release states.
 
-## Implemented in v0.2
+## Catalog v0.2 / explorer v0.3
 
 - Six manufacturing process families and seven material families.
 - Twenty-seven draft component-route options across thirteen component types.
@@ -61,7 +61,7 @@ CNC output requires a selected machine/controller, stock, cutters, workholding, 
 - Separate SQLite tables linked to component IDs, plus JSON/CSV route exports.
 - Three wood/material examples, explicitly separate from installed component records.
 
-All routes remain NOT_APPROVED. No vision model, CAD generator, CAM engine or machine connection was added. The existing 3D viewer still displays its original AM screening colors; use this route catalog for the expanded manufacturing scope. No new UI capability is implied.
+All routes remain NOT_APPROVED. No vision model, CAD generator, CAM engine or machine connection was added. The standalone explorer now loads this catalog: route filters, component badges, material/process details, supplier/contractor dispositions and downloadable JSON briefs. The glTF export retains its historical AM screening colors. Substation manufacturing CAD generation remains roadmap work.
 
 To regenerate the catalog, run `build.py` followed by `expand_manufacturing_routes.py`. The v0.1 ZIP remains the historical original snapshot.
 

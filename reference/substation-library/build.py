@@ -114,7 +114,8 @@ for m in meshes:
     gmeshes.append(dict(primitives=[dict(attributes=dict(POSITION=pa),indices=ia,material=statuses.index(p['am_screening']))]));nodes.append(dict(name=p['id']+' '+p['name'],mesh=len(gmeshes)-1,extras=dict(component_id=p['id'],service_release='NOT_APPROVED',geometry='SCHEMATIC')))
 gltf=dict(asset=dict(version='2.0',generator='Substation R&D concept; NOT manufacturing CAD'),scene=0,scenes=[dict(nodes=list(range(len(nodes))))],nodes=nodes,meshes=gmeshes,materials=[dict(name=s,doubleSided=True,pbrMetallicRoughness=dict(baseColorFactor=colors[s],metallicFactor=0,roughnessFactor=.85)) for s in statuses],buffers=[dict(byteLength=len(binary),uri='data:application/octet-stream;base64,'+base64.b64encode(binary).decode())],bufferViews=views,accessors=accessors,extras=dict(geometry_basis=data['geometry_basis']))
 (OUT/'substation-concept.gltf').write_text(json.dumps(gltf,separators=(',',':')))
-template=(OUT/'viewer-template.html').read_text();(OUT.parent/'substation-explorer.html').write_text(template.replace('/*SCENE_DATA*/',json.dumps(data,separators=(',',':'))))
+import runpy
+runpy.run_path(str(OUT/'build_explorer.py'))
 assert len({p['id'] for p in parts})==len(parts)
 assert {m['part_id'] for m in meshes}=={p['id'] for p in parts}
 print(json.dumps(dict(components=len(parts),families=len(families),meshes=len(meshes),screening={s:sum(p['am_screening']==s for p in parts) for s in statuses})))
