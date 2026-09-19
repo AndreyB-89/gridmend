@@ -1,22 +1,17 @@
 # Team working agreement
 
-Use a short branch per slice, such as `feat/voice-capture` or `feat/plate-generator`. Open a pull request into `main` and have the other technical teammate review it. Keep `main` usable; do not collect three disconnected implementations until the final hour.
+Current scope: broken middle yellow ring → checked STEP/STL, with no printer. Read [the current plan](docs/project-plan.md) and [sprint issues](docs/sprints.md). Plate v1.1 material is archived; do not implement it.
 
-Mortaza owns `web/`, `api/`, `contracts/` and deployment. Valentin owns `engine/`, `cad/` and `evals/`. Andrii owns `fixtures/`, `catalog/`, `evidence/` and product claims. A contract change needs Mortaza plus its consumer. Andrii protects scope.
+| Owner | Files and responsibility |
+| --- | --- |
+| Andrii | Fixtures, experiment, acceptance runs, evidence, pitch/submission; protects scope |
+| Valentin | engine/, cad/, evals/, inspection/generation routes and backend bootstrap |
+| Mortaza | web/, voice/files routes, integration and serving |
 
-## First tickets
+Both developers agree on contracts/types.ts (v2). Valentin mirrors it in Pydantic. Keep branches short (e.g. feat/ring-fit, feat/voice-review); open a PR into main, obtain peer review, and integrate completed slices continuously.
 
-| Ticket | Owner | Done when |
-| --- | --- | --- |
-| Prove Nebius image model and CAD runtime | Valentin | Actual image response saved and STEP/STL plate reopens |
-| Scaffold FastAPI/UI against contract v1.1 | Mortaza | UI renders typed mocked ready/needs-input/blocked states |
-| Confirm fixture truth and reuse rules | Andrii | Drawing/reference and five expected outcomes recorded |
-| Prove microphone → SLNG transcript | Mortaza + Valentin | Fresh clip returns real transcript by 17:30 |
-| Integrate photo + reviewed voice → CAD | Both technical owners | Full path works with reference-confirmed dimensions |
-| Find and fix consequential failure with Galtea | Valentin + Andrii | Actual baseline failure, fix and rerun saved |
+Each ticket needs one owner, an observable outcome, a testable done-when, relevant failure behavior and an evidence link/build commit. Andrii reviews geometry/accuracy claims. LIVE/REPLAY/MOCK must stay visible. Do not use intact reference photos as undeclared inputs to a damaged-only demonstration.
 
-## Every ticket
+Integration freeze Sat 22:05; stop 23:00; resume Sun 09:00; code freeze 09:30; submit by 10:30 with buffer to 11:00. No new feature after integration freeze. No overnight tasks.
 
-Name one owner, scoped outcome, contract impact and testable done-when. Include working and relevant failure-case evidence, commit SHA and peer review. Keep LIVE/REPLAY/MOCK and staged/real provenance visible. Never present an unimplemented feature as working.
-
-Use `docs/project-plan.md` for full acceptance criteria, sponsor evidence and freezes. Public visibility, teammate access, deployment and license remain explicit setup choices.
+The repository is public in HackBarna-GridMend. Do not commit provider credentials or unreviewed photographs of background screens/bystanders. Local raw captures stay outside version control unless deliberately selected for publication. Licensing is still unselected.

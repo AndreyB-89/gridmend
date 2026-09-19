@@ -1,0 +1,27 @@
+{
+  "specimen": "middle yellow ring",
+  "state": "INTACT_REFERENCE_ONLY",
+  "damaged_images_available": false,
+  "card_size_mm": null,
+  "card_size_confirmed": false,
+  "outer_diameter_mm": null,
+  "inner_diameter_mm": null,
+  "thickness_mm": null,
+  "profile_rz_mm": null,
+  "physical_fit_verified": false,
+  "photos": [
+    {
+      "filename": "codex-clipboard-5b57fbd7-315c-4ffd-880e-65e4e78b0096.jpg",
+      "role": "intact_top_comparison"
+    },
+    {
+      "filename": "codex-clipboard-f2afaff7-8702-4283-b7db-53f6da366e58.jpg",
+      "role": "intact_side_comparison_obscured_card"
+    },
+    {
+      "filename": "codex-clipboard-bace31f4-dd0e-43e5-ab0b-aa33056d38f9.jpg",
+      "role": "intact_side_comparison_plane_unverified"
+    }
+  ],
+  "note": "Photographs are not bundled. Keep intact comparison inputs separate from damaged reconstruction inputs. Never treat null dimensions as zero or defaults."
+}
