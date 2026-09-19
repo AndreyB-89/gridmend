@@ -1,7 +1,7 @@
 {
   "specimen": "middle yellow ring",
-  "state": "INTACT_REFERENCE_ONLY",
-  "damaged_images_available": false,
+  "state": "DAMAGED_CAPTURED",
+  "damaged_images_available": true,
   "card_size_mm": null,
   "card_size_confirmed": false,
   "outer_diameter_mm": null,
@@ -11,17 +11,31 @@
   "physical_fit_verified": false,
   "photos": [
     {
-      "filename": "codex-clipboard-5b57fbd7-315c-4ffd-880e-65e4e78b0096.jpg",
-      "role": "intact_top_comparison"
+      "filename": "sample-photos/20260919_180605.jpg",
+      "role": "damaged_top_primary",
+      "note": "Near top-down; full card; large surviving arc plus two small fragments"
     },
     {
-      "filename": "codex-clipboard-f2afaff7-8702-4283-b7db-53f6da366e58.jpg",
-      "role": "intact_side_comparison_obscured_card"
+      "filename": "sample-photos/20260919_181651.jpg",
+      "role": "damaged_closeup_profile",
+      "note": "Cross-section close-up; USB-C plug is not a calibrated scale"
     },
     {
-      "filename": "codex-clipboard-bace31f4-dd0e-43e5-ab0b-aa33056d38f9.jpg",
-      "role": "intact_side_comparison_plane_unverified"
+      "filename": "sample-photos/IMG_20260919_181324_468.jpg",
+      "role": "damaged_closeup_groove",
+      "note": "Inner groove visible"
+    },
+    {
+      "filename": "sample-photos/20260919_180631.jpg",
+      "role": "damaged_side_unusable_for_scale",
+      "note": "Card held by hand, not coplanar"
+    },
+    {
+      "filename": "sample-photos/20260919_171736.jpg",
+      "role": "intact_top_comparison_held_out",
+      "note": "Intact rings; use only after the damaged-only run"
     }
   ],
-  "note": "Photographs are not bundled. Keep intact comparison inputs separate from damaged reconstruction inputs. Never treat null dimensions as zero or defaults."
+  "note": "Photos stay local (sample-photos/ is gitignored: bystanders/screens, 271 MB video). Keep intact comparison inputs separate from damaged reconstruction inputs. Never treat null dimensions as zero or defaults.",
+  "card_size_note": "Calicéo card looks like ID-1 (85.60 x 53.98 mm). Keep card_size_mm null until measured with a ruler."
 }

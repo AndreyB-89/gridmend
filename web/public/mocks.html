@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GridMend – choose a layout</title>
+<style>
+  :root { --ink: #22252b; --muted: #6b7380; --line: #d9dee5; --bg: #eef1f4; --sel: #22252b; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; grid-template-rows: auto 1fr; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  nav { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: #fff; flex-wrap: wrap; }
+  nav strong { margin-right: 10px; font-weight: 650; }
+  nav button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  nav button[aria-pressed="true"] { background: var(--sel); color: #fff; border-color: var(--sel); }
+  nav button:focus-visible, nav a:focus-visible { outline: 3px solid #4a7dff; outline-offset: 2px; }
+  nav span { margin-left: auto; color: var(--muted); }
+  nav a { color: var(--ink); }
+  iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+</style>
+</head>
+<body>
+<nav aria-label="Layout options">
+  <strong>Choose a layout</strong>
+  <button data-m="a">A: Drafting sheet</button>
+  <button data-m="b">B: Inspection bench</button>
+  <button data-m="c">C: Field assistant</button>
+  <button data-m="d">D: Split reveal</button>
+  <span>Static mocks with example data. <a id="open" href="#" target="_blank">Open full screen</a></span>
+</nav>
+<iframe id="frame" title="Layout mock"></iframe>
+<script>
+  const frame = document.getElementById("frame");
+  const open = document.getElementById("open");
+  function show(m) {
+    frame.src = `/mocks/${m}.html`;
+    open.href = `/mocks/${m}.html`;
+    document.querySelectorAll("nav button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.m === m)));
+    history.replaceState(null, "", `#${m}`);
+  }
+  document.querySelectorAll("nav button").forEach((b) => (b.onclick = () => show(b.dataset.m)));
+  show((location.hash.slice(1) || "a").toLowerCase());
+</script>
+</body>
+</html>

@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridMend bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bench:#1F2733;
+  --bench-deep:#18202A;
+  --raised:#2A3441;
+  --raised-2:#334051;
+  --line:#3A4758;
+  --text:#EEF1F5;
+  --muted:#9AA6B5;
+  --part:#F4C430;
+  --missing:#FF5A4E;
+  --ok:#4CC38A;
+  --warn:#FF9F43;
+  --lamp:#FFE7B3;
+  --focus:#8EC5FF;
+  --display:"Bricolage Grotesque", system-ui, sans-serif;
+  --body:"Figtree", system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bench);color:var(--text);font:400 16px/1.5 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:8px}
+
+/* Top bar */
+.top{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px;padding:14px 28px;height:72px}
+.brand{display:flex;align-items:center;gap:10px;font:800 22px/1 var(--display);letter-spacing:-.01em}
+.brand svg{flex:none}
+.badges{display:flex;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:5px 11px 5px 9px;border-radius:999px;background:var(--raised);font-size:13px;color:var(--muted)}
+.badge b{color:var(--text);font-weight:600}
+.badge i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(76,195,138,.18)}
+
+/* Stepper */
+.stepper{justify-self:center;display:flex;align-items:center;gap:0;list-style:none;margin:0;padding:0}
+.stepper li{display:flex;align-items:center}
+.stepper li+li::before{content:"";width:42px;height:2px;background:var(--line);margin:0 6px}
+.stepper li.done+li::before,.stepper li.done+li.current::before{background:var(--part)}
+.step-btn{display:flex;align-items:center;gap:10px;background:none;border:0;padding:6px 10px 6px 6px;border-radius:999px;cursor:pointer;color:var(--muted)}
+.step-btn:hover{background:var(--raised)}
+.step-num{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:2px solid var(--line);font:700 15px/1 var(--display)}
+.step-label{font-weight:600;font-size:15px}
+.done .step-num{background:var(--part);border-color:var(--part);color:#2A2106}
+.done .step-btn{color:var(--text)}
+.current .step-num{border-color:var(--text);color:var(--bench);background:var(--text)}
+.current .step-btn{color:var(--text)}
+
+/* Main */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;padding:0 28px 22px;height:calc(100vh - 72px);min-height:560px}
+.stage{position:relative;border-radius:22px;background:var(--bench-deep);overflow:hidden;display:flex;flex-direction:column;isolation:isolate}
+.stage-head{position:relative;z-index:5;display:flex;align-items:baseline;gap:16px;padding:22px 26px 0}
+.stage-head h1{margin:0;font:700 clamp(26px,2.6vw,36px)/1.1 var(--display);letter-spacing:-.02em}
+.stage-head p{margin:0;color:var(--muted);font-size:15px}
+.panel{position:absolute;inset:0;display:none;flex-direction:column}
+.panel.on{display:flex}
+.panel-body{position:relative;flex:1;min-height:0}
+.stage-foot{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 22px 20px}
+.hint{color:var(--muted);font-size:14px}
+.kbd{display:inline-block;padding:0 6px;border-radius:5px;background:var(--raised);color:var(--text);font-size:13px}
+
+.btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:12px;padding:12px 20px;font-weight:600;font-size:16px;cursor:pointer;background:var(--raised);color:var(--text)}
+.btn:hover{background:var(--raised-2)}
+.btn.primary{background:var(--part);color:#231A02}
+.btn.primary:hover{background:#FFD24D}
+.btn.ghost{background:none;color:var(--muted);padding-left:10px;padding-right:10px}
+.btn.ghost:hover{color:var(--text);background:var(--raised)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.ok{background:var(--ok);color:#06231A}
+
+/* Step 1 photo */
+.photo-wrap{position:absolute;inset:8px 24px 8px;display:flex;align-items:center;justify-content:center;gap:28px}
+.photo-wrap img{height:100%;max-height:100%;width:auto;max-width:48%;object-fit:contain;border-radius:14px;box-shadow:0 24px 50px -20px rgba(0,0,0,.6)}
+.found{max-width:300px;display:flex;flex-direction:column;gap:18px}
+.found-item{display:flex;gap:12px;align-items:flex-start}
+.found-item svg{flex:none;margin-top:3px}
+.found-item strong{display:block;font:600 19px/1.25 var(--display)}
+.found-item span{color:var(--muted);font-size:14px}
+
+/* Step 2 edges */
+.edges svg.ov{position:absolute;inset:0;width:100%;height:100%}
+.handle{cursor:grab;outline:none}
+.handle circle.hit{fill:transparent}
+.handle circle.ring{fill:none;stroke:none}
+.handle circle.dot{fill:#fff;stroke:#1F2733;stroke-width:2.5;transition:r .12s}
+.handle:hover circle.dot,.handle:focus-visible circle.dot{r:8}
+.handle:focus-visible circle.ring{stroke:var(--focus);stroke-width:3}
+.handle.moved circle.dot{fill:var(--focus)}
+.fit-strip{position:absolute;left:24px;right:24px;bottom:4px;display:flex;gap:10px;flex-wrap:wrap;z-index:4}
+.fit{background:rgba(24,32,42,.88);backdrop-filter:blur(6px);border-radius:14px;padding:10px 16px 11px}
+.fit .n{font:700 30px/1 var(--display);letter-spacing:-.02em}
+.fit .n small{font-size:16px;font-weight:600;color:var(--muted);margin-left:3px}
+.fit .l{font-size:13px;color:var(--muted);margin-top:4px}
+.fit.red .n{color:var(--missing)}
+.fit.yel .n{color:var(--part)}
+.drag-note{position:absolute;top:10px;right:24px;z-index:4;background:rgba(24,32,42,.88);border-radius:10px;padding:8px 12px;font-size:14px;color:var(--muted);max-width:340px}
+.drag-note b{color:var(--text);font-weight:600}
+
+/* Step 3 ask */
+.ask{position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;padding:10px 30px 8px;align-items:center}
+.observe{display:flex;gap:12px;color:var(--muted);font-size:15px;max-width:520px;margin-bottom:22px}
+.observe svg{flex:none;margin-top:2px}
+.question{margin:0 0 28px;font:700 clamp(34px,3.9vw,56px)/1.04 var(--display);letter-spacing:-.025em;max-width:13ch;text-wrap:balance}
+.talk-row{display:flex;align-items:center;gap:22px}
+.ptt{position:relative;width:128px;height:128px;border-radius:50%;border:0;background:var(--part);color:#231A02;cursor:pointer;display:grid;place-items:center;flex:none;box-shadow:0 0 0 10px rgba(244,196,48,.12)}
+.ptt:hover{background:#FFD24D}
+.ptt.rec{background:var(--missing);color:#fff;box-shadow:0 0 0 10px rgba(255,90,78,.18),0 0 0 22px rgba(255,90,78,.08)}
+.ptt-label{font-weight:600;font-size:17px}
+.ptt-label span{display:block;color:var(--muted);font-weight:400;font-size:14px}
+.wave{width:100%;height:64px;display:block;margin-top:24px}
+.answer{background:var(--raised);border-radius:20px;padding:22px 22px 20px;display:flex;flex-direction:column;gap:16px;align-self:center}
+.said{margin:0;font:500 19px/1.4 var(--body)}
+.said-meta{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}
+.draft-list{display:flex;flex-direction:column;gap:10px}
+.draft-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 12px;border:1.5px dashed #6C7A8C;border-radius:12px;padding:10px 14px}
+.draft-row .k{font-weight:600}
+.draft-row .v{font:700 22px/1 var(--display)}
+.draft-row .from{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.draft-row .from s{color:var(--muted)}
+.draft-row.confirmed{border-style:solid;border-color:rgba(76,195,138,.55)}
+.answer-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.type-form{display:none;gap:8px;flex-wrap:wrap}
+.type-form.on{display:flex}
+.type-form label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:4px}
+.type-form input{width:110px;background:var(--bench);border:1.5px solid var(--line);border-radius:10px;color:var(--text);padding:8px 10px;font:600 16px var(--body)}
+
+/* Step 4 build */
+.bench{position:absolute;inset:0;overflow:hidden}
+.bench::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 70% at 50% 110%,#232D3A 0%,var(--bench-deep) 60%);z-index:0}
+.lamp-head{position:absolute;top:-6px;left:50%;width:150px;height:44px;transform:translateX(-50%);z-index:3;opacity:0}
+.lamp-head::before{content:"";position:absolute;inset:0;background:#3A4758;clip-path:polygon(22% 0,78% 0,100% 100%,0 100%);border-radius:4px}
+.lamp-head::after{content:"";position:absolute;left:4%;right:4%;bottom:-3px;height:6px;border-radius:6px;background:var(--lamp);box-shadow:0 0 22px 6px rgba(255,231,179,.55)}
+.cone{position:absolute;top:36px;left:50%;width:min(78%,760px);height:78%;transform:translateX(-50%);z-index:1;opacity:0;
+  background:linear-gradient(to bottom,rgba(255,231,179,.20),rgba(255,231,179,.05) 70%,rgba(255,231,179,0));
+  clip-path:polygon(40% 0,60% 0,100% 100%,0 100%);filter:blur(10px)}
+.spot{position:absolute;left:50%;bottom:16%;width:min(70%,700px);height:36%;transform:translateX(-50%) scale(.8);z-index:1;opacity:0;border-radius:50%;
+  background:radial-gradient(closest-side,rgba(255,231,179,.30),rgba(255,231,179,.10) 55%,rgba(255,231,179,0))}
+#three{position:absolute;inset:0;z-index:2;opacity:0}
+#three canvas{display:block;width:100%;height:100%}
+.build-head{position:absolute;left:0;top:auto;bottom:118px;flex-direction:column;gap:6px;padding:0 26px}
+.legend{position:absolute;left:26px;bottom:4px;z-index:4;display:flex;gap:16px;font-size:14px;color:var(--muted);opacity:0}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:12px;height:12px;border-radius:3px}
+.gl-fail{position:absolute;inset:0;display:none;place-items:center;z-index:4;color:var(--muted);text-align:center;padding:24px}
+
+.lit .lamp-head{opacity:1;transition:opacity .35s ease .1s}
+.lit .cone{opacity:1;transition:opacity .9s ease .35s}
+.lit .spot{opacity:1;transform:translateX(-50%) scale(1);transition:opacity 1s ease .45s,transform 1.2s cubic-bezier(.2,.7,.2,1) .45s}
+.lit #three{opacity:1;transition:opacity .9s ease .8s}
+.lit .legend{opacity:1;transition:opacity .5s ease 2.4s}
+.instant *,.instant::before{transition:none!important}
+
+/* Rail: values ledger */
+.rail{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto;padding:4px 2px 4px 0;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.rail h2{margin:0;font:700 20px/1.2 var(--display);letter-spacing:-.01em}
+.rail .sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.ledger{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ledger li{display:grid;grid-template-columns:1fr auto;gap:0 10px;padding:9px 0;border-top:1px solid var(--line)}
+.ledger li:last-child{border-bottom:1px solid var(--line)}
+.ledger .name{font-weight:600;font-size:15px}
+.ledger .val{font:700 21px/1.1 var(--display);text-align:right;letter-spacing:-.01em}
+.ledger .val.unknown{color:var(--muted);font-weight:600;font-size:17px}
+.ledger .src{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.state{font-size:13px;font-weight:600;text-align:right;display:inline-flex;align-items:center;gap:5px;justify-self:end}
+.state.c{color:var(--ok)}
+.state.d{color:var(--part);}
+.state.d::before{content:"";width:9px;height:9px;border-radius:50%;border:2px dashed var(--part)}
+.state.u{color:var(--muted)}
+.ledger li.flash{animation:flash 1s ease}
+@keyframes flash{from{background:rgba(76,195,138,.18)}to{background:transparent}}
+
+.build-box{background:var(--raised);border-radius:18px;padding:16px 16px 14px;display:flex;flex-direction:column;gap:12px}
+.build-box .btn{justify-content:center}
+.block-note{font-size:14px;color:var(--muted);margin:0}
+.block-note button{background:none;border:0;padding:0;color:var(--text);text-decoration:underline;cursor:pointer;font-weight:600}
+.checks{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:14px}
+.checks li{display:flex;align-items:center;gap:7px;color:var(--muted)}
+.checks li.pass{color:var(--text)}
+.checks li svg{flex:none}
+.downloads{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.build-box{gap:10px}
+.dl{display:flex;align-items:baseline;gap:6px;text-decoration:none;color:var(--text);background:var(--bench);border-radius:10px;padding:7px 11px;font-weight:600;font-size:14px}
+.dl span{font-weight:400;color:var(--muted);font-size:12px}
+.dl:hover{background:var(--raised-2)}
+.dl[aria-disabled="true"]{opacity:.4;pointer-events:none}
+.caveat{font-size:13px;color:var(--muted);margin:0}
+.hidden{display:none!important}
+
+@media (max-height:820px) and (min-width:1101px){
+  .question{font-size:clamp(30px,3.2vw,42px);margin-bottom:18px}
+  .observe{margin-bottom:12px;font-size:14px}
+  .ptt{width:96px;height:96px;box-shadow:0 0 0 8px rgba(244,196,48,.12)}
+  .ptt svg{width:32px;height:32px}
+  .wave{height:44px;margin-top:14px}
+  .answer{padding:16px 18px;gap:11px}
+  .said{font-size:16px}
+  .draft-row{padding:8px 12px}
+  .draft-row .v{font-size:19px}
+  .stage-head{padding-top:18px}
+  .ledger li{padding:7px 0}
+  .ledger .val{font-size:19px}
+}
+@media (max-width:1100px){
+  .main{grid-template-columns:1fr;height:auto}
+  .stage{height:78vh;min-height:520px}
+  .step-label{display:none}
+}
+@media (max-width:700px){
+  .top{grid-template-columns:1fr auto;height:auto;padding:12px 16px}
+  .stepper{grid-column:1/-1;grid-row:2;justify-self:stretch;justify-content:center}
+  .stepper li+li::before{width:18px}
+  .badges{gap:4px}
+  .main{padding:0 16px 16px}
+  .ask{grid-template-columns:1fr;overflow:auto;padding:10px 16px}
+  .photo-wrap{flex-direction:column}
+  .photo-wrap img{max-width:100%;height:60%}
+  .stage-head{flex-direction:column;gap:4px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path d="M14 3a11 11 0 1 1-10.4 7.4" fill="none" stroke="#F4C430" stroke-width="5" stroke-linecap="round"/><path d="M3.6 10.4A11 11 0 0 1 14 3" fill="none" stroke="#FF5A4E" stroke-width="5" stroke-linecap="round"/></svg>
+    GridMend
+  </div>
+  <ol class="stepper" id="stepper" aria-label="Repair steps">
+    <li><button class="step-btn" data-go="0"><span class="step-num">1</span><span class="step-label">Photo</span></button></li>
+    <li><button class="step-btn" data-go="1"><span class="step-num">2</span><span class="step-label">Edges</span></button></li>
+    <li><button class="step-btn" data-go="2"><span class="step-num">3</span><span class="step-label">Ask</span></button></li>
+    <li><button class="step-btn" data-go="3"><span class="step-num">4</span><span class="step-label">Build</span></button></li>
+  </ol>
+  <div class="badges">
+    <span class="badge" title="Vision model connection"><i></i><b>Nebius</b> live</span>
+    <span class="badge" title="Speech connection"><i></i><b>SLNG</b> live</span>
+  </div>
+</header>
+
+<main class="main">
+  <section class="stage" aria-live="polite">
+    <!-- Step 1 -->
+    <div class="panel" data-step="0">
+      <div class="stage-head"><h1>Your photo</h1><p>One top-down shot, with a bank card next to the part.</p></div>
+      <div class="panel-body">
+        <div class="photo-wrap">
+          <img src="/api/demo-photo" alt="Top-down photo: a bank card and half of a yellow ring on a desk">
+          <div class="found">
+            <div class="found-item">
+              <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="#4CC38A"/><path d="M6.5 11.5l3 3 6-6.5" stroke="#06231A" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div><strong>Card found</strong><span>85.60 × 53.98 mm, measured. This sets the scale.</span></div>
+            </div>
+            <div class="found-item">
+              <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="#4CC38A"/><path d="M6.5 11.5l3 3 6-6.5" stroke="#06231A" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div><strong>Broken part found</strong><span>About half of a yellow ring. The rest is missing.</span></div>
+            </div>
+            <div class="found-item">
+              <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="#9AA6B5" stroke-width="2"/><path d="M11 6v6l3.5 2" stroke="#9AA6B5" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+              <div><strong>Next: check the edges</strong><span>12 points on each edge were placed for you.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <span class="hint">Use <span class="kbd">←</span> <span class="kbd">→</span> to move between steps.</span>
+        <button class="btn primary" data-next>Check edges</button>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="panel edges" data-step="1">
+      <div class="stage-head"><h1>Check the edges</h1><p>Auto-detected. Drag a point to correct it.</p></div>
+      <div class="panel-body">
+        <svg class="ov" id="ov" viewBox="-40 650 980 430" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Photo overlay with fitted circles. Yellow part survives, red arc is missing.">
+          <image href="/api/demo-photo" x="0" y="0" width="901" height="1600" preserveAspectRatio="none"/>
+          <rect x="-200" y="0" width="1300" height="1600" fill="#18202A" opacity=".28"/>
+          <g id="fitg"></g>
+          <g id="handles"></g>
+        </svg>
+        <div class="drag-note" id="dragNote"><b>24 points</b> placed for you. Tab to a point, then nudge it with arrow keys.</div>
+        <div class="fit-strip">
+          <div class="fit yel"><div class="n">192°<small>of ring</small></div><div class="l">Survives in the photo</div></div>
+          <div class="fit red"><div class="n">168°<small>of ring</small></div><div class="l">Missing, rebuilt in red</div></div>
+          <div class="fit"><div class="n" id="fitErr">0.23<small>mm</small></div><div class="l">Fit error</div></div>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <button class="btn ghost" data-prev>Back</button>
+        <button class="btn primary" data-next>Edges look right</button>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="panel" data-step="2">
+      <div class="stage-head"><h1>One question</h1><p>The photo cannot show depth, so GridMend asks you.</p></div>
+      <div class="panel-body">
+        <div class="ask">
+          <div>
+            <div class="observe">
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M1 9s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z" fill="none" stroke="#9AA6B5" stroke-width="1.6"/><circle cx="9" cy="9" r="2.6" fill="#9AA6B5"/></svg>
+              <span>Nebius sees: “I see about half of a yellow ring next to the card. The rest is missing. I rebuilt the missing part in red.”</span>
+            </div>
+            <h2 class="question">How thick is the ring? Please measure it with a caliper.</h2>
+            <div class="talk-row">
+              <button class="ptt" id="ptt" aria-pressed="false" aria-describedby="pttLabel">
+                <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="14" y="5" width="12" height="20" rx="6" fill="currentColor"/><path d="M9 19a11 11 0 0 0 22 0M20 30v5" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+                <span class="hidden" id="pttSr">Hold to talk</span>
+              </button>
+              <div class="ptt-label" id="pttLabel">Hold to answer<span>Or press Space. Release when you finish.</span></div>
+            </div>
+            <canvas class="wave" id="wave" aria-hidden="true"></canvas>
+          </div>
+          <div class="answer" id="answer">
+            <div class="said-meta">
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="4.5" y="1" width="5" height="8" rx="2.5" fill="#9AA6B5"/><path d="M2.5 7a4.5 4.5 0 0 0 9 0" stroke="#9AA6B5" stroke-width="1.4" fill="none"/></svg>
+              You said. Transcribed by SLNG in 0.4 s.
+            </div>
+            <p class="said">“Thickness is six millimetres, and there is a groove on the inside, one millimetre deep and two wide.”</p>
+            <div class="draft-list">
+              <div class="draft-row" data-row="thick">
+                <span class="k">Thickness</span><span class="v" id="dThick">6.0 mm</span>
+                <span class="from" id="dThickFrom">Was unknown. From your spoken measurement. Draft, not confirmed.</span>
+              </div>
+              <div class="draft-row" data-row="groove">
+                <span class="k">Groove, inside</span><span class="v" id="dGroove">1.0 × 2.0 mm</span>
+                <span class="from" id="dGrooveFrom">Depth × width, from your voice. Draft, not confirmed.</span>
+              </div>
+            </div>
+            <div class="type-form" id="typeForm">
+              <label>Thickness, mm<input id="inThick" inputmode="decimal" value="6.0"></label>
+              <label>Groove depth, mm<input id="inDepth" inputmode="decimal" value="1.0"></label>
+              <label>Groove width, mm<input id="inWidth" inputmode="decimal" value="2.0"></label>
+            </div>
+            <div class="answer-actions" id="answerActions">
+              <button class="btn ok" id="confirmBtn">Confirm values</button>
+              <button class="btn" id="cancelBtn">Cancel</button>
+              <button class="btn ghost" id="typeBtn" aria-expanded="false" aria-controls="typeForm">Type instead</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <button class="btn ghost" data-prev>Back</button>
+        <button class="btn primary" data-next>Go to build</button>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="panel" data-step="3">
+      <div class="bench" id="bench">
+        <div class="lamp-head" aria-hidden="true"></div>
+        <div class="cone" aria-hidden="true"></div>
+        <div class="spot" aria-hidden="true"></div>
+        <div id="three" role="img" aria-label="3D view of the rebuilt ring. Yellow is the part you have, red is the restored segment. Drag to turn it."></div>
+        <div class="gl-fail" id="glFail">The 3D view needs WebGL. Your files are still ready to download.</div>
+      </div>
+      <div class="stage-head build-head"><h1>The rebuilt ring</h1><p>Drag to turn it. Red is the part GridMend restored.</p></div>
+      <div class="panel-body">
+        <div class="legend"><span><i style="background:var(--part)"></i>Your part, from the photo</span><span><i style="background:var(--missing)"></i>Restored segment, 168°</span></div>
+      </div>
+      <div class="stage-foot">
+        <button class="btn ghost" data-prev>Back</button>
+        <button class="btn ghost" id="replay">Light it again</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="rail" aria-label="Values and build">
+    <div>
+      <h2>Values</h2>
+      <p class="sub">Each number shows its source. Nothing is guessed.</p>
+    </div>
+    <ul class="ledger">
+      <li><span class="name">Outer diameter</span><span class="val">41.3 mm</span><span class="src">From photo</span><span class="state c">✓ Confirmed</span></li>
+      <li><span class="name">Inner diameter</span><span class="val">29.6 mm</span><span class="src">From photo</span><span class="state c">✓ Confirmed</span></li>
+      <li id="lThick"><span class="name">Thickness</span><span class="val">6.0 mm</span><span class="src">From your voice</span><span class="state d">Draft</span></li>
+      <li id="lGroove"><span class="name">Groove</span><span class="val">1 × 2 mm</span><span class="src">From your voice</span><span class="state d">Draft</span></li>
+      <li><span class="name">Card</span><span class="val" style="font-size:17px">85.60 × 53.98</span><span class="src">Measured, sets scale</span><span class="state c">✓ Confirmed</span></li>
+    </ul>
+
+    <div class="build-box">
+      <p class="block-note" id="blockNote">Confirm thickness and groove before you build. <button id="goConfirm">Go to question</button></p>
+      <button class="btn primary" id="buildBtn" disabled>Build CAD</button>
+      <ul class="checks" id="checks" aria-label="Checks">
+        <li>Solid</li><li>Dimensions</li><li>Profile</li><li>STEP reopens</li><li>STL watertight</li>
+      </ul>
+      <div class="downloads" id="downloads">
+        <a class="dl" href="#" aria-disabled="true">STEP<span>CAD</span></a>
+        <a class="dl" href="/api/files/mock-ring.stl" aria-disabled="true">STL<span>full ring</span></a>
+        <a class="dl" href="/api/files/mock-missing.stl" aria-disabled="true">STL<span>missing part</span></a>
+        <a class="dl" href="#" aria-disabled="true">Summary<span>PDF</span></a>
+      </div>
+      <p class="caveat">No physical fit tested. No printer available.</p>
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const panels = [...document.querySelectorAll('.panel')];
+  const steps = [...document.querySelectorAll('#stepper li')];
+  let cur = -1;
+  window.gmState = { confirmed:false };
+
+  function go(i){
+    i = Math.max(0, Math.min(3, i));
+    if (i === cur) return;
+    cur = i;
+    panels.forEach((p,k) => p.classList.toggle('on', k === i));
+    steps.forEach((s,k) => {
+      s.classList.toggle('done', k < i);
+      s.classList.toggle('current', k === i);
+      const b = s.querySelector('button');
+      if (k === i) b.setAttribute('aria-current','step'); else b.removeAttribute('aria-current');
+      b.setAttribute('aria-label', `Step ${k+1}: ${b.textContent.trim().slice(1)}${k<i?', done':''}`);
+    });
+    history.replaceState(null,'','#'+(i+1));
+    document.dispatchEvent(new CustomEvent('gm-step',{detail:i}));
+  }
+  document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(+b.dataset.go)));
+  document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => go(cur+1)));
+  document.querySelectorAll('[data-prev]').forEach(b => b.addEventListener('click', () => go(cur-1)));
+  document.addEventListener('keydown', e => {
+    const t = e.target;
+    if (t.matches('input, textarea') || t.closest('.handle') || t.closest('#three')) return;
+    if (e.key === 'ArrowRight') { go(cur+1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { go(cur-1); e.preventDefault(); }
+  });
+
+  /* ---- Edge handles (overlay space 901x1600) ---- */
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const ov = document.getElementById('ov'), hg = document.getElementById('handles');
+  const C = {x:430, y:874};
+  const edges = [{r:124}, {r:90}];
+  const A0 = -130, A1 = 58; // surviving arc, degrees, screen space
+  const pt = (r,a) => [C.x + r*Math.cos(a*Math.PI/180), C.y + r*Math.sin(a*Math.PI/180)];
+  const arc = (r,a,b,sweep) => { const [x1,y1]=pt(r,a),[x2,y2]=pt(r,b); const big = Math.abs(b-a)>180?1:0; return `M${x1} ${y1} A${r} ${r} 0 ${big} ${sweep} ${x2} ${y2}`; };
+  const fitg = document.getElementById('fitg');
+  {
+    const [ox1,oy1]=pt(124,A1),[ox2,oy2]=pt(124,A0+360),[ix1,iy1]=pt(90,A0+360),[ix2,iy2]=pt(90,A1);
+    fitg.innerHTML =
+      `<path d="M${ox1} ${oy1} A124 124 0 0 1 ${ox2} ${oy2} L${ix1} ${iy1} A90 90 0 0 0 ${ix2} ${iy2} Z" fill="#FF5A4E" fill-opacity=".38"/>` +
+      `<path d="${arc(124,A1,A0+360,1)}" fill="none" stroke="#FF5A4E" stroke-width="5" stroke-linecap="round"/>` +
+      `<path d="${arc(90,A1,A0+360,1)}" fill="none" stroke="#FF5A4E" stroke-width="5" stroke-linecap="round"/>` +
+      `<path d="${arc(124,A0,A1,1)}" fill="none" stroke="#EEF1F5" stroke-width="2" stroke-dasharray="6 5"/>` +
+      `<path d="${arc(90,A0,A1,1)}" fill="none" stroke="#EEF1F5" stroke-width="2" stroke-dasharray="6 5"/>` +
+      `<circle cx="${C.x}" cy="${C.y}" r="4" fill="#EEF1F5"/>`;
+  }
+  let moved = 0;
+  edges.forEach((ed, ei) => {
+    for (let k = 0; k < 12; k++) {
+      const a = (A0 + 4 + k * ((A1-A0-8)/11)) * Math.PI/180;
+      const g = document.createElementNS(svgNS,'g');
+      g.setAttribute('class','handle'); g.setAttribute('tabindex','0'); g.setAttribute('role','slider');
+      g.setAttribute('aria-label', `${ei ? 'Inner' : 'Outer'} edge point ${k+1}`);
+      g.setAttribute('aria-valuetext','Auto-detected');
+      g.innerHTML = `<circle class="ring" r="12"/><circle class="hit" r="14"/><circle class="dot" r="6"/>`;
+      let x = C.x + ed.r*Math.cos(a), y = C.y + ed.r*Math.sin(a);
+      const place = () => g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+      const mark = () => {
+        if (!g.classList.contains('moved')) { g.classList.add('moved'); moved++; }
+        g.setAttribute('aria-valuetext','Moved by you');
+        document.getElementById('dragNote').innerHTML = `<b>${moved} point${moved>1?'s':''} moved by you.</b> The circles refit from your points.`;
+        document.getElementById('fitErr').innerHTML = (0.23 + moved*0.01).toFixed(2) + '<small>mm</small>';
+      };
+      place();
+      g.addEventListener('pointerdown', e => {
+        g.setPointerCapture(e.pointerId); g.style.cursor='grabbing';
+        const mv = ev => { const p = ov.createSVGPoint(); p.x=ev.clientX; p.y=ev.clientY; const q = p.matrixTransform(ov.getScreenCTM().inverse()); x=q.x; y=q.y; place(); };
+        const up = () => { g.removeEventListener('pointermove',mv); g.removeEventListener('pointerup',up); g.style.cursor=''; mark(); };
+        g.addEventListener('pointermove',mv); g.addEventListener('pointerup',up);
+      });
+      g.addEventListener('keydown', e => {
+        const d = e.shiftKey ? 6 : 2;
+        const m = {ArrowLeft:[-d,0],ArrowRight:[d,0],ArrowUp:[0,-d],ArrowDown:[0,d]}[e.key];
+        if (m) { x+=m[0]; y+=m[1]; place(); mark(); e.preventDefault(); e.stopPropagation(); }
+      });
+      hg.appendChild(g);
+    }
+  });
+
+  /* ---- Waveform ---- */
+  const cv = document.getElementById('wave'), cx = cv.getContext('2d');
+  let rec = false, t0 = 0;
+  const seed = Array.from({length:72}, (_,i) => 0.18 + 0.82*Math.abs(Math.sin(i*1.7)*Math.cos(i*0.37)) * (0.5+0.5*Math.sin(i*0.21)));
+  function drawWave(ts){
+    const w = cv.clientWidth, h = cv.clientHeight, dpr = devicePixelRatio||1;
+    if (cv.width !== w*dpr) { cv.width = w*dpr; cv.height = h*dpr; }
+    cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,w,h);
+    const n = seed.length, gap = w/n, bw = Math.max(2, gap*0.55);
+    for (let i=0;i<n;i++){
+      let v = seed[i];
+      if (rec) v = 0.15 + 0.85*Math.abs(Math.sin(ts/140 + i*0.55) * Math.sin(ts/390 + i*0.17)) * (0.6+0.4*Math.sin(ts/90+i));
+      const bh = Math.max(3, v*h*0.92);
+      cx.fillStyle = rec ? '#FF5A4E' : (i/n < 0.999 ? '#F4C430' : '#9AA6B5');
+      cx.globalAlpha = rec ? 1 : 0.75;
+      cx.beginPath(); cx.roundRect(i*gap, (h-bh)/2, bw, bh, bw/2); cx.fill();
+    }
+    if (rec && !reduce) requestAnimationFrame(drawWave);
+  }
+  requestAnimationFrame(drawWave);
+  addEventListener('resize', () => requestAnimationFrame(drawWave));
+  const ptt = document.getElementById('ptt'), lab = document.getElementById('pttLabel');
+  function startRec(){ if (rec) return; rec = true; ptt.classList.add('rec'); ptt.setAttribute('aria-pressed','true'); lab.innerHTML = 'Listening<span>Release to stop.</span>'; requestAnimationFrame(drawWave); }
+  function stopRec(){ if (!rec) return; rec = false; ptt.classList.remove('rec'); ptt.setAttribute('aria-pressed','false'); lab.innerHTML = 'Hold to answer again<span>Your last answer is on the right.</span>'; requestAnimationFrame(drawWave); }
+  ptt.addEventListener('pointerdown', startRec);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev => ptt.addEventListener(ev, stopRec));
+  ptt.addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); startRec(); } });
+  ptt.addEventListener('keyup', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); stopRec(); } });
+
+  /* ---- Confirm / cancel / type ---- */
+  const tf = document.getElementById('typeForm'), typeBtn = document.getElementById('typeBtn');
+  typeBtn.addEventListener('click', () => { const on = tf.classList.toggle('on'); typeBtn.setAttribute('aria-expanded', on); if (on) document.getElementById('inThick').focus(); });
+  function setLedger(id, val, src, confirmed){
+    const li = document.getElementById(id);
+    li.querySelector('.val').textContent = val;
+    li.querySelector('.val').classList.toggle('unknown', val === 'Unknown');
+    li.querySelector('.src').textContent = src;
+    const st = li.querySelector('.state');
+    st.className = 'state ' + (confirmed ? 'c' : val === 'Unknown' ? 'u' : 'd');
+    st.textContent = confirmed ? '✓ Confirmed' : val === 'Unknown' ? 'Ask needed' : 'Draft';
+    li.classList.remove('flash'); void li.offsetWidth; if (confirmed && !reduce) li.classList.add('flash');
+  }
+  function refreshBuild(){
+    const ok = gmState.confirmed;
+    document.getElementById('buildBtn').disabled = !ok;
+    document.getElementById('blockNote').classList.toggle('hidden', ok);
+  }
+  document.getElementById('confirmBtn').addEventListener('click', () => {
+    const typed = tf.classList.contains('on');
+    const th = parseFloat(document.getElementById('inThick').value)||6, dp = parseFloat(document.getElementById('inDepth').value)||1, wd = parseFloat(document.getElementById('inWidth').value)||2;
+    const src = typed ? 'Typed by you' : 'From your voice';
+    document.getElementById('dThick').textContent = th.toFixed(1)+' mm';
+    document.getElementById('dGroove').textContent = dp.toFixed(1)+' × '+wd.toFixed(1)+' mm';
+    document.getElementById('dThickFrom').textContent = (typed?'Typed by you':'From your spoken measurement') + '. Confirmed.';
+    document.getElementById('dGrooveFrom').textContent = 'Depth × width, ' + (typed?'typed by you':'from your voice') + '. Confirmed.';
+    document.querySelectorAll('.draft-row').forEach(r => r.classList.add('confirmed'));
+    setLedger('lThick', th.toFixed(1)+' mm', src, true);
+    setLedger('lGroove', dp+' × '+wd+' mm', src, true);
+    gmState.confirmed = true; refreshBuild(); tf.classList.remove('on');
+    document.getElementById('confirmBtn').textContent = 'Confirmed';
+    document.getElementById('confirmBtn').disabled = true;
+  });
+  document.getElementById('cancelBtn').addEventListener('click', () => {
+    document.getElementById('dThick').textContent = 'Unknown';
+    document.getElementById('dGroove').textContent = 'Unknown';
+    document.getElementById('dThickFrom').textContent = 'Not set. Answer again, or type it.';
+    document.getElementById('dGrooveFrom').textContent = 'Not set. Answer again, or type it.';
+    document.querySelectorAll('.draft-row').forEach(r => r.classList.remove('confirmed'));
+    setLedger('lThick','Unknown','Ask needed',false); setLedger('lGroove','Unknown','Ask needed',false);
+    gmState.confirmed = false; refreshBuild();
+    const cb = document.getElementById('confirmBtn'); cb.textContent = 'Confirm values'; cb.disabled = false;
+  });
+  document.getElementById('goConfirm').addEventListener('click', () => { go(2); document.getElementById('confirmBtn').focus(); });
+
+  /* ---- Build ---- */
+  const tick = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.5" fill="#4CC38A"/><path d="M4.6 8.3l2.2 2.2 4.4-4.7" stroke="#06231A" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const dot = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#5C6A7C" stroke-width="1.6"/></svg>';
+  const checks = [...document.querySelectorAll('#checks li')];
+  checks.forEach(li => li.insertAdjacentHTML('afterbegin', dot));
+  const buildBtn = document.getElementById('buildBtn');
+  buildBtn.addEventListener('click', () => {
+    buildBtn.disabled = true; buildBtn.textContent = 'Building CAD';
+    checks.forEach((li,i) => setTimeout(() => {
+      li.classList.add('pass'); li.querySelector('svg').outerHTML = tick;
+      if (i === checks.length-1) {
+        buildBtn.textContent = '5 of 5 checks passed';
+        document.querySelectorAll('.dl').forEach(a => a.removeAttribute('aria-disabled'));
+      }
+    }, reduce ? 0 : 260*(i+1)));
+  });
+
+  const start = parseInt(location.hash.slice(1)) - 1;
+  if (location.search.includes('confirmed')) document.getElementById('confirmBtn').click();
+  go(Number.isInteger(start) && start >= 0 ? start : 0);
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches || location.search.includes('still');
+const host = document.getElementById('three');
+const bench = document.getElementById('bench');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true }); }
+catch (e) { document.getElementById('glFail').style.display = 'grid'; bench.closest('.panel').classList.add('lit','instant'); }
+
+if (renderer) {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  host.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 1, 1000);
+  camera.up.set(0,0,1);
+  camera.position.set(78, -104, 74);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.enablePan = false;
+  controls.minDistance = 60; controls.maxDistance = 220;
+  controls.autoRotateSpeed = 0.8;
+
+  const hemi = new THREE.HemisphereLight(0xbcd0ff, 0x1a2230, 0);
+  scene.add(hemi);
+  const lamp = new THREE.SpotLight(0xffe7b3, 0, 260, Math.PI/7, 0.65, 1.2);
+  lamp.position.set(0, 10, 120);
+  lamp.castShadow = true; lamp.shadow.mapSize.set(1024,1024); lamp.shadow.radius = 6; lamp.shadow.bias = -0.0005;
+  scene.add(lamp); scene.add(lamp.target);
+  const rim = new THREE.DirectionalLight(0x9fb8ff, 0);
+  rim.position.set(-60, 80, 30); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xfff1d6, 0);
+  fill.position.set(80, -110, 25); scene.add(fill);
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.ShadowMaterial({ opacity:0.35 }));
+  floor.receiveShadow = true; scene.add(floor);
+
+  const yellow = new THREE.MeshPhysicalMaterial({ color:0xF4C430, roughness:0.62, metalness:0, clearcoat:0.1, clearcoatRoughness:0.6 });
+  const red = new THREE.MeshPhysicalMaterial({ color:0xFF5A4E, roughness:0.5, metalness:0, clearcoat:0.2, transparent:true, opacity:0, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 });
+
+  const group = new THREE.Group(); scene.add(group);
+  const loader = new STLLoader();
+  const load = url => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+  let ready = false;
+  Promise.all([load('/api/files/mock-ring.stl'), load('/api/files/mock-missing.stl')]).then(([gRing, gMiss]) => {
+    gRing.computeBoundingBox();
+    const bb = gRing.boundingBox, c = new THREE.Vector3(); bb.getCenter(c);
+    [gRing, gMiss].forEach(g => { g.translate(-c.x, -c.y, -bb.min.z); g.computeVertexNormals(); });
+    const ring = new THREE.Mesh(gRing, yellow); ring.castShadow = true; ring.receiveShadow = true;
+    const miss = new THREE.Mesh(gMiss, red); miss.scale.setScalar(1.004); miss.castShadow = false;
+    group.add(ring, miss);
+    const h = bb.max.z - bb.min.z;
+    controls.target.set(0,0,h/2 - 7); lamp.target.position.set(0,0,0);
+    ready = true;
+    if (bench.closest('.panel').classList.contains('on')) reveal();
+  }).catch(() => { document.getElementById('glFail').textContent = 'Could not load the 3D files. Downloads are still available.'; document.getElementById('glFail').style.display = 'grid'; });
+
+  const size = () => { const w = host.clientWidth, h = host.clientHeight; if (!w||!h) return; renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix(); };
+  new ResizeObserver(size).observe(host);
+
+  // Signature: the bench lamp reveal.
+  let revealAt = -1;
+  const ease = t => t<=0?0:t>=1?1:1-Math.pow(1-t,3);
+  function reveal(){
+    const pn = bench.closest('.panel');
+    pn.classList.toggle('instant', reduce);
+    pn.classList.remove('lit'); void pn.offsetWidth; pn.classList.add('lit');
+    controls.autoRotate = false;
+    revealAt = reduce ? -Infinity : performance.now();
+  }
+  document.addEventListener('gm-step', e => { if (e.detail === 3) { size(); if (ready) reveal(); } });
+  if (bench.closest('.panel').classList.contains('on')) size();
+  document.getElementById('replay').addEventListener('click', () => ready && reveal());
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    if (!bench.closest('.panel').classList.contains('on')) return;
+    const t = revealAt === -Infinity ? 99 : revealAt < 0 ? 0 : (now - revealAt)/1000;
+    const kLamp = ease((t-0.6)/1.1);      // lamp warms up
+    const kFill = ease((t-1.0)/1.0);      // room fill
+    const kRed  = ease((t-2.0)/0.9);      // restored segment arrives
+    lamp.intensity = 950*kLamp;
+    hemi.intensity = 1.5*kFill;
+    rim.intensity = 1.4*kFill;
+    fill.intensity = 1.1*kFill;
+    red.opacity = kRed; red.depthWrite = kRed > 0.98;
+    if (t > 3 && !reduce) controls.autoRotate = true;
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>

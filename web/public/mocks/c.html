@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridMend field assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --steel:#E6E9ED;      /* cool light grey, page */
+  --steel-2:#D5DAE0;    /* dividers, pressed */
+  --white:#FFFFFF;
+  --hivis:#FFD21F;      /* hi-vis yellow */
+  --hivis-deep:#E0B400;
+  --hivis-tint:#FFF4C2;
+  --graphite:#22252B;
+  --graphite-2:#3A3F48;
+  --muted:#5A616C;
+  --signal:#E63B2E;
+  --ok:#1E9E61;
+  --ok-tint:#DDF2E7;
+  --r-s:8px; --r-m:14px; --r-l:22px;
+  --font:"Atkinson Hyperlegible Next","Atkinson Hyperlegible",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--steel);color:var(--graphite);font-family:var(--font);font-size:18px;line-height:1.4;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:4px solid var(--graphite);outline-offset:3px;box-shadow:0 0 0 7px var(--hivis)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- shell ---------- */
+.app{height:100vh;display:grid;grid-template-rows:64px 1fr;min-height:640px}
+header{display:flex;align-items:center;gap:20px;padding:0 24px;background:var(--graphite);color:var(--white)}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:24px;letter-spacing:-.01em}
+.brand svg{flex:none}
+.job{color:#B9BFC8;font-size:17px;padding-left:20px;border-left:2px solid var(--graphite-2)}
+.job b{color:var(--white);font-weight:700}
+.status{margin-left:auto;display:flex;gap:10px}
+.live{display:flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:999px;background:var(--graphite-2);font-size:16px;font-weight:700}
+.live i{width:10px;height:10px;border-radius:50%;background:#35D08A;box-shadow:0 0 0 3px rgba(53,208,138,.25)}
+.live span{font-weight:500;color:#B9BFC8}
+
+main{display:grid;grid-template-columns:minmax(300px,340px) minmax(420px,1fr) minmax(340px,420px);gap:16px;padding:16px;min-height:0}
+.col{min-height:0;display:flex;flex-direction:column;gap:12px}
+
+.panel{background:var(--white);border-radius:var(--r-l);border:2px solid var(--steel-2)}
+h2{font-size:20px;font-weight:800;margin:0;letter-spacing:-.005em}
+.sub{color:var(--muted);font-size:16px;margin:2px 0 0}
+
+/* ---------- left: photo + dimensions ---------- */
+.left{overflow:auto;padding-right:2px}
+.photo{padding:12px}
+.photo-frame{position:relative;border-radius:var(--r-m);overflow:hidden;background:var(--graphite);aspect-ratio:3/3.3}
+.photo-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 58%;transition:opacity .25s}
+.photo-frame .ov{opacity:1}
+.photo-frame.raw .ov{opacity:0}
+.photo-tag{position:absolute;left:8px;right:8px;bottom:8px;display:flex;gap:6px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;background:rgba(34,37,43,.88);color:#fff;font-size:14px;font-weight:700;white-space:nowrap}
+.pill .sw{width:12px;height:4px;border-radius:2px;background:var(--signal)}
+.photo-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+.photo-row p{margin:0;font-size:16px;color:var(--muted);flex:1}
+.seg{display:flex;background:var(--steel);border-radius:12px;padding:4px}
+.seg button{border:0;background:transparent;height:44px;padding:0 14px;border-radius:9px;font-size:16px;font-weight:700;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--white);color:var(--graphite);box-shadow:0 1px 0 var(--steel-2)}
+
+.dims{padding:16px 16px 8px}
+.dims-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.dims-head small{font-size:15px;color:var(--muted)}
+.dim{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-top:2px solid var(--steel)}
+.dim:first-of-type{border-top:0}
+.dim .name{font-size:16px;color:var(--muted);font-weight:500}
+.dim .val{font-size:30px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
+.dim .val small{font-size:18px;font-weight:700;margin-left:3px;color:var(--graphite-2)}
+.dim .meta{grid-row:1/3;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:6px}
+.fitline{display:flex;gap:18px;padding:12px 0 8px;border-top:2px solid var(--steel);font-size:16px;color:var(--muted)}
+.fitline b{color:var(--graphite);font-size:18px}
+
+/* provenance + state chips */
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 8px;border-radius:8px;font-size:15px;font-weight:700;white-space:nowrap;border:2px solid transparent}
+.chip svg{flex:none}
+.chip.photo{background:var(--steel);color:var(--graphite)}
+.chip.voice{background:var(--hivis-tint);color:#5C4A00;border-color:#F2DB7A}
+.chip.you{background:var(--white);color:var(--graphite);border-color:var(--graphite)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:700}
+.state.ok{color:var(--ok)}
+.state.draft{color:#7A5F00}
+.state.draft i{width:14px;height:14px;border-radius:4px;border:2px dashed #B38D00}
+.val.is-draft{color:var(--graphite-2)}
+.dim.draft .val{text-decoration:underline dashed #C9A200 3px;text-underline-offset:6px}
+
+/* ---------- centre: conversation ---------- */
+.chat{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.chat-head{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:2px solid var(--steel)}
+.chat-head .step{margin-left:auto;font-size:16px;color:var(--muted)}
+.chat-head .step b{color:var(--graphite)}
+.thread{flex:1;overflow:auto;padding:20px 20px 8px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+.msg{display:flex;gap:12px;max-width:640px}
+.msg .av{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:15px}
+.msg.ai .av{background:var(--graphite);color:var(--white)}
+.msg.me{align-self:flex-end;flex-direction:row-reverse}
+.msg.me .av{background:var(--hivis);color:var(--graphite)}
+.bubble{padding:14px 16px;border-radius:var(--r-m);font-size:19px;line-height:1.45}
+.msg.ai .bubble{background:var(--steel);border-top-left-radius:4px}
+.msg.me .bubble{background:var(--white);border:2px solid var(--graphite);border-top-right-radius:4px}
+.who{display:flex;gap:8px;align-items:center;font-size:15px;color:var(--muted);margin-bottom:4px}
+.who b{color:var(--graphite)}
+.bubble p{margin:0}
+.msg.ai .chip.photo{background:var(--white)}
+.bubble .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.bubble .q{font-size:22px;font-weight:700;line-height:1.3}
+.voice-line{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mini-wave{display:flex;gap:2px;align-items:center;height:22px}
+.mini-wave i{width:3px;border-radius:2px;background:var(--graphite)}
+.edit{margin-left:auto;border:0;background:transparent;height:44px;padding:0 10px;font-size:16px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.bubble[contenteditable=true]{outline:3px dashed var(--hivis-deep);outline-offset:2px}
+.said{font-style:normal}
+
+/* draft card */
+.draft{align-self:stretch;max-width:none}
+.msg.draft .bubble{flex:1;background:var(--white);border:3px solid var(--graphite);border-radius:var(--r-m);border-top-left-radius:4px;padding:0;overflow:hidden}
+.draft-top{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--hivis-tint);border-bottom:2px dashed #D8B52A;font-size:17px}
+.draft-top b{font-weight:800}
+.draft-rows{padding:4px 16px}
+.drow{display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:12px;padding:12px 0;border-top:2px solid var(--steel)}
+.drow:first-child{border-top:0}
+.drow .n{font-size:17px;color:var(--muted);font-weight:500}
+.drow .v{font-size:26px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.drow .v s{font-size:17px;font-weight:500;color:var(--muted)}
+.draft-actions{display:flex;gap:10px;padding:12px 16px 16px;flex-wrap:wrap}
+.btn{white-space:nowrap;height:60px;padding:0 22px;border-radius:14px;border:3px solid var(--graphite);background:var(--white);font-size:19px;font-weight:800;display:inline-flex;align-items:center;gap:10px}
+.btn:hover{background:var(--steel)}
+.btn.go{background:var(--ok);border-color:var(--ok);color:#fff;flex:1;justify-content:center;min-width:200px}
+.btn.go:hover{background:#178452;border-color:#178452}
+.btn.ghost{background:transparent;border-color:transparent;text-decoration:underline;text-underline-offset:4px;padding:0 12px}
+.btn.ghost:hover{background:transparent}
+.draft.done .draft-top{background:var(--ok-tint);border-bottom:2px solid #9CD6B8}
+.draft.done .bubble{border-color:var(--ok)}
+.draft.cancelled .bubble{border-color:var(--steel-2);opacity:.7}
+.typebox{display:none;padding:0 16px 16px;gap:10px}
+.typebox.open{display:flex}
+.typebox input{flex:1;height:60px;border:3px solid var(--graphite);border-radius:14px;padding:0 16px;font:inherit;font-size:20px}
+
+/* ---------- push to talk dock (signature) ---------- */
+.dock{border-top:2px solid var(--steel);padding:14px 20px 18px;background:var(--white);display:flex;align-items:center;gap:16px}
+.ptt{position:relative;flex:1;min-width:0;height:96px;border-radius:24px;border:0;background:var(--hivis);color:var(--graphite);display:flex;align-items:center;gap:18px;padding:0 24px 0 16px;box-shadow:inset 0 -6px 0 var(--hivis-deep),0 0 0 3px var(--graphite);transition:transform .08s}
+.ptt:active{transform:translateY(2px);box-shadow:inset 0 -3px 0 var(--hivis-deep),0 0 0 3px var(--graphite)}
+.ptt .mic{flex:none;width:68px;height:68px;border-radius:50%;background:var(--graphite);display:grid;place-items:center;color:var(--hivis)}
+.ptt .txt{display:flex;flex-direction:column;align-items:flex-start;text-align:left}
+.ptt .t1{font-size:28px;font-weight:800;line-height:1.05;letter-spacing:-.01em}
+.ptt .t2{font-size:16px;font-weight:500;color:#4A3E00}
+.wave{flex:1;height:60px;display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;overflow:hidden}
+.wave i{display:block;width:6px;height:8px;border-radius:3px;background:var(--graphite);opacity:.25;transition:height .09s linear}
+.count{flex:none;display:none;font-size:34px;font-weight:800;min-width:74px;text-align:right}
+.ptt.rec .count{display:block}
+.ptt.rec .mic{background:var(--signal);color:#fff;animation:pulse 1.2s ease-in-out infinite}
+.ptt.rec .wave i{opacity:1}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(230,59,46,.55)}50%{box-shadow:0 0 0 10px rgba(230,59,46,0)}}
+.side-act{display:flex;flex-direction:column;gap:8px}
+.side-act .btn{height:44px;font-size:16px;padding:0 14px;border-width:2px}
+
+/* ---------- right: 3D + build ---------- */
+.right{overflow:auto}
+.viewer{position:relative;flex:1;min-height:280px;border-radius:var(--r-l);overflow:hidden;background:radial-gradient(120% 90% at 50% 35%,#343944 0%,var(--graphite) 70%)}
+.viewer canvas{display:block;width:100%;height:100%}
+.v-top{position:absolute;left:14px;right:14px;top:12px;display:flex;justify-content:space-between;align-items:flex-start;color:#fff;pointer-events:none}
+.v-top h2{color:#fff}
+.v-top .sub{color:#B9BFC8}
+.legend{position:absolute;left:14px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap}
+.legend .pill .sw.y{background:var(--hivis)}
+.v-hint{position:absolute;right:16px;top:16px;color:#B9BFC8;font-size:14px}
+.v-fallback{position:absolute;inset:0;display:none;place-items:center;color:#B9BFC8;font-size:16px;text-align:center;padding:20px}
+
+.build{padding:16px}
+.build-btn{width:100%;height:68px;border-radius:16px;border:3px solid var(--graphite);background:var(--graphite);color:#fff;font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:12px}
+.build-btn:disabled{background:var(--steel);border-color:var(--steel-2);color:var(--muted);cursor:not-allowed}
+.build-btn:not(:disabled):hover{background:var(--graphite-2)}
+.build-note{margin:8px 2px 0;font-size:16px;color:var(--muted)}
+.checks{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.checks li{display:flex;align-items:center;gap:8px;font-size:17px;min-height:32px;color:var(--muted)}
+.checks li .ck{width:24px;height:24px;border-radius:7px;border:2px solid var(--steel-2);display:grid;place-items:center;flex:none}
+.checks li.pass{color:var(--graphite);font-weight:700}
+.checks li.pass .ck{background:var(--ok);border-color:var(--ok);color:#fff}
+.dl{display:none;margin-top:12px;gap:8px;flex-wrap:wrap}
+.dl.on{display:flex}
+.dl a{display:inline-flex;align-items:center;gap:6px;height:48px;padding:0 14px;border-radius:12px;border:2px solid var(--graphite);color:var(--graphite);text-decoration:none;font-weight:700;font-size:16px}
+.dl a.red{border-color:var(--signal);color:#B42419}
+.dl a:hover{background:var(--steel)}
+.honest{display:none;margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--steel);font-size:16px}
+.honest.on{display:block}
+
+@media (max-width:1360px){
+  main{grid-template-columns:300px minmax(380px,1fr) 340px;gap:12px;padding:12px}
+  .dim .val{font-size:26px}
+  .ptt{height:84px}.ptt .mic{width:58px;height:58px}.ptt .t1{font-size:24px}
+  .bubble{font-size:18px}
+  .checks{grid-template-columns:1fr}
+}
+@media (max-height:760px){
+  .photo-frame{aspect-ratio:3/2.4}
+  .dim{padding:8px 0}
+  .dims{padding:12px 14px 4px}
+  .viewer{min-height:220px}
+  .build{padding:12px}
+  .build-btn{height:60px}
+  .checks{grid-template-columns:1fr 1fr}
+  .checks li{font-size:15px;min-height:26px}
+  .chat-head{padding:10px 16px}
+  .thread{padding:14px 16px 6px}
+  .dock{padding:10px 16px 12px}
+}
+@media (max-width:980px){
+  .app{height:auto}
+  main{grid-template-columns:1fr;}
+  .chat{min-height:80vh}
+  .viewer{min-height:340px}
+  .job{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cam" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.4" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M4 18h16M6 14l8-8 3 3-8 8H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path d="M15 3a12 12 0 0 1 0 24" fill="none" stroke="#FFD21F" stroke-width="5"/><path d="M15 27A12 12 0 0 1 15 3" fill="none" stroke="#E63B2E" stroke-width="5"/></svg>
+      GridMend
+    </div>
+    <div class="job">Part: <b>yellow retaining ring</b>, half found on site</div>
+    <div class="status" aria-label="Provider connections">
+      <div class="live"><i></i>Nebius <span>live</span></div>
+      <div class="live"><i></i>SLNG <span>live</span></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- LEFT: photo + dimensions -->
+    <section class="col left" aria-label="Photo and dimensions">
+      <div class="panel photo">
+        <div class="photo-frame" id="frame">
+          <img src="/api/demo-photo" alt="Top-down photo of half a yellow ring next to a bank card">
+          <img class="ov" src="/api/files/mock-overlay.png" alt="Fitted inner and outer circles, with the missing arc drawn in red">
+          <div class="photo-tag">
+            <span class="pill"><svg width="16" height="16"><use href="#i-ok"/></svg>Card found</span>
+            <span class="pill"><span class="sw"></span>168° missing</span>
+          </div>
+        </div>
+        <div class="photo-row">
+          <p>Auto-detected. Drag a point to correct it.</p>
+          <div class="seg" role="group" aria-label="Photo view">
+            <button aria-pressed="true" data-v="fit">Fit</button>
+            <button aria-pressed="false" data-v="raw">Photo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel dims">
+        <div class="dims-head"><h2>Dimensions</h2><small id="dimCount">2 of 4 confirmed</small></div>
+        <div class="dim">
+          <span class="name">Outer diameter</span>
+          <span class="val">41.3<small>mm</small></span>
+          <span class="meta"><span class="chip photo"><svg width="16" height="16"><use href="#i-cam"/></svg>Photo</span><span class="state ok"><svg width="16" height="16"><use href="#i-ok"/></svg>Confirmed</span></span>
+        </div>
+        <div class="dim">
+          <span class="name">Inner diameter</span>
+          <span class="val">29.6<small>mm</small></span>
+          <span class="meta"><span class="chip photo"><svg width="16" height="16"><use href="#i-cam"/></svg>Photo</span><span class="state ok"><svg width="16" height="16"><use href="#i-ok"/></svg>Confirmed</span></span>
+        </div>
+        <div class="dim draft" data-dim="thk">
+          <span class="name">Thickness</span>
+          <span class="val">6.0<small>mm</small></span>
+          <span class="meta"><span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice</span><span class="state draft"><i></i>Draft</span></span>
+        </div>
+        <div class="dim draft" data-dim="grv">
+          <span class="name">Inner groove</span>
+          <span class="val">1 × 2<small>mm</small></span>
+          <span class="meta"><span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice</span><span class="state draft"><i></i>Draft</span></span>
+        </div>
+        <div class="fitline"><span><b>192°</b> survives</span><span>Fit error <b>0.23 mm</b></span></div>
+      </div>
+    </section>
+
+    <!-- CENTRE: conversation -->
+    <section class="panel chat" aria-label="Conversation">
+      <div class="chat-head">
+        <h2>Talk it through</h2>
+        <span class="step" id="stepLabel">Step 2 of 3: <b>check what I heard</b></span>
+      </div>
+      <div class="thread" id="thread" aria-live="polite">
+        <div class="msg ai">
+          <div class="av" aria-hidden="true">AI</div>
+          <div class="bubble">
+            <div class="who"><b>Nebius</b> looked at your photo</div>
+            <p>I see about half of a yellow ring next to the card. The rest is missing. I rebuilt the missing part in red.</p>
+            <div class="chips">
+              <span class="chip photo"><svg width="16" height="16"><use href="#i-cam"/></svg>Outer 41.3 mm</span>
+              <span class="chip photo"><svg width="16" height="16"><use href="#i-cam"/></svg>Inner 29.6 mm</span>
+              <span class="chip photo"><svg width="16" height="16"><use href="#i-cam"/></svg>Card 85.60 × 53.98 mm</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg ai">
+          <div class="av" aria-hidden="true">AI</div>
+          <div class="bubble">
+            <div class="who"><b>Nebius</b> needs one thing the photo cannot show</div>
+            <p class="q">How thick is the ring? Please measure it with a caliper.</p>
+          </div>
+        </div>
+
+        <div class="msg me">
+          <div class="av" aria-hidden="true">You</div>
+          <div class="bubble" id="said">
+            <div class="voice-line">
+              <span class="mini-wave" aria-hidden="true" id="miniWave"></span>
+              <span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice, 0:06</span>
+              <button class="edit" id="editBtn">Edit text</button>
+            </div>
+            <p class="said" id="saidText">“Thickness is six millimetres, and there is a groove on the inside, one millimetre deep and two wide.”</p>
+            <div class="who" style="margin:8px 0 0">Transcribed by SLNG in 0.4 s</div>
+          </div>
+        </div>
+
+        <div class="msg ai draft" id="draft">
+          <div class="av" aria-hidden="true">AI</div>
+          <div class="bubble">
+            <div class="draft-top" id="draftTop"><span class="state draft"><i></i></span><span><b>Draft, not saved yet.</b> Is this what you said?</span></div>
+            <div class="draft-rows">
+              <div class="drow">
+                <span class="n">Thickness</span>
+                <span class="v"><s>unknown</s>6.0 mm</span>
+                <span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice</span>
+              </div>
+              <div class="drow">
+                <span class="n">Inner groove</span>
+                <span class="v"><s>none</s>1.0 × 2.0 mm</span>
+                <span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice</span>
+              </div>
+            </div>
+            <div class="draft-actions" id="draftActions">
+              <button class="btn go" id="confirmBtn"><svg width="24" height="24"><use href="#i-ok"/></svg>Confirm both values</button>
+              <button class="btn" id="cancelBtn">Cancel</button>
+              <button class="btn ghost" id="typeBtn">Type instead</button>
+            </div>
+            <form class="typebox" id="typeBox">
+              <label class="sr" for="typeIn">Thickness in millimetres</label>
+              <input id="typeIn" inputmode="decimal" placeholder="Thickness, for example 6.0">
+              <button class="btn" type="submit">Use this</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="dock">
+        <button class="ptt" id="ptt" aria-pressed="false">
+          <span class="mic"><svg width="34" height="34"><use href="#i-mic"/></svg></span>
+          <span class="txt"><span class="t1" id="pttT1">Tap to talk</span><span class="t2" id="pttT2">Answer by voice. Gloves are fine.</span></span>
+          <span class="wave" id="wave" aria-hidden="true"></span>
+          <span class="count" id="count" aria-live="off">0:30</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- RIGHT: 3D + build -->
+    <section class="col right" aria-label="Rebuilt part">
+      <div class="viewer" id="viewer">
+        <div class="v-top">
+          <div><h2>Rebuilt ring</h2><p class="sub" id="vSub">Preview from the photo</p></div>
+        </div>
+        <div class="legend">
+          <span class="pill"><span class="sw y"></span>Your part</span>
+          <span class="pill"><span class="sw"></span>Restored, 168°</span>
+        </div>
+        <div class="v-hint">Drag to turn</div>
+        <div class="v-fallback" id="vFallback">3D preview needs WebGL.<br>The files are still ready to download.</div>
+      </div>
+
+      <div class="panel build">
+        <button class="build-btn" id="buildBtn" disabled>Build CAD</button>
+        <p class="build-note" id="buildNote">Confirm thickness and groove first. I only build from values you checked.</p>
+        <ul class="checks" id="checks">
+          <li><span class="ck"></span>Solid</li>
+          <li><span class="ck"></span>Dimensions</li>
+          <li><span class="ck"></span>Profile</li>
+          <li><span class="ck"></span>STEP reopens</li>
+          <li><span class="ck"></span>STL watertight</li>
+        </ul>
+        <div class="dl" id="dl">
+          <a href="#" download>STEP</a>
+          <a href="/api/files/mock-ring.stl" download>STL, full ring</a>
+          <a class="red" href="/api/files/mock-missing.stl" download>STL, missing segment</a>
+          <a href="#" download>Summary</a>
+        </div>
+        <p class="honest" id="honest">No physical fit tested. No printer available.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // photo view toggle
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    $('#frame').classList.toggle('raw', b.dataset.v === 'raw');
+  }));
+
+  // static mini waveform in the voice bubble
+  const mw = $('#miniWave');
+  [6,12,18,10,20,14,8,16,22,12,6,14,18,9,5,11,16,7].forEach(h => { const i = document.createElement('i'); i.style.height = h + 'px'; mw.appendChild(i); });
+
+  // edit transcript
+  const saidText = $('#saidText');
+  $('#editBtn').addEventListener('click', e => {
+    const on = saidText.getAttribute('contenteditable') !== 'true';
+    saidText.setAttribute('contenteditable', on);
+    saidText.parentElement.toggleAttribute('data-editing', on);
+    e.currentTarget.textContent = on ? 'Done' : 'Edit text';
+    if (on) { saidText.focus(); }
+  });
+
+  // draft confirm / cancel / type
+  const thread = $('#thread');
+  function aiSay(html, q) {
+    const d = document.createElement('div');
+    d.className = 'msg ai';
+    d.innerHTML = `<div class="av" aria-hidden="true">AI</div><div class="bubble"><div class="who"><b>Nebius</b></div><p${q ? ' class="q"' : ''}>${html}</p></div>`;
+    thread.appendChild(d); thread.scrollTop = thread.scrollHeight;
+  }
+  function meSay(text) {
+    const d = document.createElement('div');
+    d.className = 'msg me';
+    d.innerHTML = `<div class="av" aria-hidden="true">You</div><div class="bubble"><div class="voice-line"><span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice</span></div><p>“${text}”</p><div class="who" style="margin:8px 0 0">Transcribed by SLNG in 0.3 s</div></div>`;
+    thread.appendChild(d); thread.scrollTop = thread.scrollHeight;
+  }
+  function setDim(key, source) {
+    const row = document.querySelector(`.dim[data-dim="${key}"]`);
+    row.classList.remove('draft');
+    const src = source === 'you'
+      ? '<span class="chip you"><svg width="16" height="16"><use href="#i-hand"/></svg>You</span>'
+      : '<span class="chip voice"><svg width="16" height="16"><use href="#i-mic"/></svg>Voice</span>';
+    row.querySelector('.meta').innerHTML = src + '<span class="state ok"><svg width="16" height="16"><use href="#i-ok"/></svg>Confirmed</span>';
+  }
+  function confirmed(source, thk) {
+    const d = $('#draft');
+    d.classList.add('done');
+    $('#draftTop').innerHTML = '<span class="state ok"><svg width="20" height="20"><use href="#i-ok"/></svg></span><span><b>Confirmed.</b> Saved to the part.</span>';
+    $('#draftActions').remove(); $('#typeBox').remove();
+    if (thk) {
+      d.querySelector('.drow .v').innerHTML = `<s>unknown</s>${thk} mm`;
+      d.querySelector('.drow .chip').outerHTML = '<span class="chip you"><svg width="16" height="16"><use href="#i-hand"/></svg>You</span>';
+      document.querySelector('.dim[data-dim="thk"] .val').innerHTML = `${thk}<small>mm</small>`;
+    }
+    setDim('thk', source); setDim('grv', 'voice');
+    $('#dimCount').textContent = '4 of 4 confirmed';
+    $('#stepLabel').innerHTML = 'Step 3 of 3: <b>build the part</b>';
+    const b = $('#buildBtn'); b.disabled = false;
+    $('#buildNote').textContent = 'All four values are confirmed. Ready to build.';
+    aiSay('Thanks. Thickness and groove are confirmed. You can build the CAD now.');
+  }
+  $('#confirmBtn').addEventListener('click', () => confirmed('voice'));
+  $('#cancelBtn').addEventListener('click', () => {
+    const d = $('#draft'); d.classList.add('cancelled');
+    $('#draftTop').innerHTML = '<span><b>Cancelled.</b> Nothing was saved.</span>';
+    $('#draftActions').remove(); $('#typeBox').remove();
+    aiSay('How thick is the ring? Please measure it with a caliper.', true);
+  });
+  $('#typeBtn').addEventListener('click', () => { $('#typeBox').classList.add('open'); $('#typeIn').focus(); });
+  $('#typeBox').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = parseFloat($('#typeIn').value.replace(',', '.'));
+    if (!(v > 0 && v < 100)) { $('#typeIn').setAttribute('aria-invalid', 'true'); $('#typeIn').placeholder = 'Enter a number in mm'; $('#typeIn').value=''; return; }
+    confirmed('you', v.toFixed(1));
+  });
+
+  // build
+  $('#buildBtn').addEventListener('click', () => {
+    const b = $('#buildBtn'); b.disabled = true; b.textContent = 'Building CAD…';
+    const items = [...document.querySelectorAll('#checks li')];
+    items.forEach((li, i) => setTimeout(() => {
+      li.classList.add('pass'); li.querySelector('.ck').innerHTML = '<svg width="16" height="16"><use href="#i-ok"/></svg>';
+      if (i === items.length - 1) {
+        b.textContent = 'Built. 5 of 5 checks passed';
+        $('#buildNote').textContent = 'Made from 4 confirmed values.';
+        $('#dl').classList.add('on'); $('#honest').classList.add('on');
+        $('#vSub').textContent = 'Built from confirmed values';
+      }
+    }, reduce ? 0 : 350 * (i + 1)));
+  });
+
+  // push to talk (signature)
+  const ptt = $('#ptt'), wave = $('#wave'), count = $('#count');
+  const BARS = 34; const bars = [];
+  for (let i = 0; i < BARS; i++) { const b = document.createElement('i'); wave.appendChild(b); bars.push(b); }
+  let rec = false, t0 = 0, raf = 0, last = 0;
+  function idleWave() { bars.forEach((b, i) => b.style.height = (6 + 4 * Math.abs(Math.sin(i * .7))) + 'px'); }
+  idleWave();
+  function frame(now) {
+    const left = Math.max(0, 30 - (now - t0) / 1000);
+    count.textContent = '0:' + String(Math.ceil(left)).padStart(2, '0');
+    if (left <= 0) { stop(true); return; }
+    if (now - last > 90) {
+      last = now;
+      const env = 0.55 + 0.45 * Math.sin(now / 420);
+      bars.forEach((b, i) => {
+        const c = 1 - Math.abs(i - BARS / 2) / (BARS / 2) * 0.6;
+        const h = reduce ? 20 + 18 * c : 8 + Math.random() * 50 * c * env;
+        b.style.height = h.toFixed(0) + 'px';
+      });
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  function start() {
+    rec = true; ptt.classList.add('rec'); ptt.setAttribute('aria-pressed', 'true');
+    $('#pttT1').textContent = 'Listening'; $('#pttT2').textContent = 'Tap again to send';
+    t0 = performance.now(); raf = requestAnimationFrame(frame);
+  }
+  function stop(send) {
+    rec = false; cancelAnimationFrame(raf); ptt.classList.remove('rec'); ptt.setAttribute('aria-pressed', 'false');
+    $('#pttT1').textContent = 'Tap to talk'; $('#pttT2').textContent = 'Answer by voice. Gloves are fine.';
+    count.textContent = '0:30'; idleWave();
+    if (send) {
+      meSay('Can you repeat the question?');
+      setTimeout(() => aiSay('How thick is the ring? Please measure it with a caliper.', true), reduce ? 0 : 500);
+    }
+  }
+  ptt.addEventListener('click', () => rec ? stop(true) : start());
+  addEventListener('keydown', e => { if (e.key === 'Escape' && rec) stop(false); });
+  thread.scrollTop = thread.scrollHeight;
+  window.__gm = { start, stop };
+  if (location.hash === '#rec') { start(); }
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const host = document.getElementById('viewer');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+} catch (e) {
+  document.getElementById('vFallback').style.display = 'grid';
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+host.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 1, 1000);
+camera.up.set(0, 0, 1);
+camera.position.set(70, -80, 70);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2e36, 1.4));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(60, -40, 120); scene.add(key);
+const rim = new THREE.DirectionalLight(0xbcd2ff, 0.9); rim.position.set(-80, 70, 30); scene.add(rim);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.enablePan = false;
+controls.autoRotate = !reduce; controls.autoRotateSpeed = 0.9;
+controls.minDistance = 50; controls.maxDistance = 220;
+
+const group = new THREE.Group(); scene.add(group);
+const loader = new STLLoader();
+const load = url => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+
+// ground shadow disc
+const disc = new THREE.Mesh(new THREE.CircleGeometry(26, 64), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16 }));
+scene.add(disc);
+
+Promise.all([load('/api/files/mock-ring.stl'), load('/api/files/mock-missing.stl')]).then(([ring, miss]) => {
+  ring.computeBoundingBox();
+  const c = new THREE.Vector3(); ring.boundingBox.getCenter(c);
+  const zmin = ring.boundingBox.min.z;
+  [ring, miss].forEach(g => { g.translate(-c.x, -c.y, -c.z); g.computeVertexNormals(); });
+  const yellow = new THREE.MeshPhysicalMaterial({ color: 0xFFC400, roughness: 0.55, clearcoat: 0.15, clearcoatRoughness: 0.6,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  const red = new THREE.MeshPhysicalMaterial({ color: 0xE63B2E, roughness: 0.5, clearcoat: 0.2, clearcoatRoughness: 0.5 });
+  group.add(new THREE.Mesh(ring, yellow));
+  const m = new THREE.Mesh(miss, red); m.scale.setScalar(1.004); group.add(m);
+  disc.position.z = (zmin - c.z) - 0.6;
+  controls.target.set(0, 0, 0); controls.update();
+}).catch(() => { document.getElementById('vFallback').style.display = 'grid'; });
+
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  const d = 100 * Math.max(1, 1.1 / camera.aspect);
+  camera.position.setLength(d);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host); resize();
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

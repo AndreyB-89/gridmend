@@ -8,15 +8,16 @@ The customer problem is a hypothesis to validate: some legacy accessories lack u
 
 | Time | Say / show | Evidence boundary |
 | --- | --- | --- |
-| **0:00–0:35** | Show the existing generic 110 kV substation model and point to an accessory category. “Our application is maintenance of legacy substation equipment, where a replacement accessory or its CAD may be difficult to obtain.” | Label the scene generic and the availability problem a hypothesis unless supported by a real example. |
-| **0:35–0:55** | Hold up the broken middle ring. “This simple specimen lets us demonstrate one essential step: recovering missing geometry from photos and an engineer's answers.” | The ring is a lab proxy. It is not a substation-qualified part. |
-| **0:55–2:40** | Run damaged image + card calibration. Say “The inside has a groove”; show the highlighted cross-section, make one explicit profile correction, preview it and say “Confirm”. Show surviving arcs and the restored segment. | Real Nebius/SLNG calls if working; mark replay/manual corrections openly. |
-| **2:40–3:20** | Rotate the generated ring; show restored geometry and actual STEP/STL downloads. | Show independent export checks and any profile approximation. No printer is available; fit and motion are untested. |
-| **3:20–4:00** | Show a genuine Galtea-discovered failure, the fix and rerun. | If no failure was discovered, report that rather than fabricating a story. |
-| **4:00–4:40** | Return to the catalog: “We already have an illustrative component library and draft manufacturing routes. The next stage connects this reconstruction workflow to one verified industrial accessory.” Show polymer AM, CNC metal and sheet-fabrication candidates. | Library records are authored screening proposals, not approved replacements or implemented reconstruction coverage. |
-| **4:40–5:00** | “Our next validation is one real accessory, a reviewed material/process choice and an independently inspected specimen.” Name the partner/evidence sought. | No invented customer commitment, savings, accuracy or deployment claim. |
+| **0:00–0:30** | Show the generic 110 kV substation model for a few seconds. “Legacy equipment has small parts that break, and often nobody has the CAD any more.” | Generic scene; availability problem is a hypothesis unless Andrii has a real example. |
+| **0:30–0:50** | Hold up the half ring. “Only half of this part survives. You cannot measure the diameter of a half ring with a ruler.” | The ring is a lab proxy, not a substation part. |
+| **0:50–2:30** | Photo with card → click card corners and surviving edges → fitted circles, missing arc in red. Ask by voice: “Thickness is … millimetres, there is a groove on the inside.” Show the proposal, then “Confirm”. | Real Nebius/SLNG calls; manual clicks are the designed input, say so. |
+| **2:30–3:20** | Rotate the rebuilt ring: surviving part in yellow, **restored missing segment in red**. Download STEP/STL, show the passed checks. | No printer; fit is untested. Say it once. |
+| **3:20–4:10** | Galtea: “We said ‘nine or nineteen, I haven't measured it’.” Show what the first version **really** did, the fix and the rerun. | Only the real result. If no failure was found, say so. |
+| **4:10–5:00** | “Next: one real legacy accessory from a substation, and an inspected printed or machined specimen.” Show the route catalog for 10 seconds. | Catalog routes are draft proposals, not approved parts. |
 
-Three-minute version: substation application 0:00–0:25; ring photo/voice 0:25–1:25; CAD/download 1:25–2:00; actual failure/fix 2:00–2:30; industrial roadmap and next validation 2:30–3:00.
+Three-minute version: problem 0:00–0:20; half ring + photo/clicks/voice 0:20–1:30; rebuilt ring + downloads 1:30–2:10; Galtea fix 2:10–2:40; next step 2:40–3:00.
+
+Say the limits (no printer, no fit test, draft routes) **once**, clearly. Do not repeat them on every slide.
 
 ## One roadmap visual
 
@@ -31,7 +32,8 @@ Use the existing [library](../reference/substation-library/README.md) and [route
 | Question | Answer |
 | --- | --- |
 | “Why a ring if the product is about substations?” | It isolates geometry recovery in a simple physical example we can inspect. The substation catalog defines the intended application; industrial suitability is the next validation. |
-| “Why AI rather than drawing it manually?” | Test whether photo interpretation and spoken clarification reduce the manual work to establish a model. This demo must show actual geometry extraction and correction; do not assert time savings without a comparison. |
+| “Why AI rather than drawing it manually?” | “When half the part is gone, you cannot measure it directly. The app finds the full circle from the surviving arc and the card scale, and asks the engineer only for what the photo cannot show. Voice keeps the hands free for the caliper.” |
 | “Does this mean you can print a transformer?” | No. The catalog separates candidate accessory routes from specialist/excluded functions. Each real part needs its own material, interface and engineering assessment. |
 | “Why printing rather than CNC?” | The future route depends on actual material and functional requirements. The existing library records several options. This weekend exports ring CAD; it does not produce a validated process plan or toolpath. |
 | “How much of a substation can be reproduced?” | We have no defensible percentage. The 36 records are an illustrative, mixed-granularity set, not a complete station BOM. |
+| “Isn't the original model online?” | “For this toy, maybe. For a 30-year-old substation accessory, usually not. That is the real use case.” |

@@ -6,15 +6,28 @@ HackBarna AI Summit Barcelona 2026 R&D demonstrator for damaged substation acces
 
 ## Current status
 
-Repository starter with a working standalone substation route explorer: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. The integrated web app, sponsor API connections and manufacturing CAD generator are **not implemented yet**.
+Repository starter with a working standalone substation route explorer: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. Implementation in progress on `feat/api-web`: FastAPI backend, CadQuery ring generator, card-scale circle fit, SLNG/Nebius adapters with visible MOCK mode, React + Three.js UI.
+
+## Run it
+
+Needs `uv` and Node 22. Python 3.12 is picked automatically (`.python-version`).
+
+```bash
+cp .env.example .env          # add NEBIUS_API_KEY, NEBIUS_MODEL, SLNG_API_KEY (without keys: MOCK mode, shown in the UI)
+uv sync
+cd web && npm install && npm run build && cd ..
+uv run uvicorn api.main:app --port 8000     # open http://127.0.0.1:8000
+```
+
+Web development with hot reload: `cd web && npm run dev` (proxies `/api` to port 8000).
+Tests: `uv run pytest -q`. Whole path: `scripts/smoke.sh`.
 
 ## Start here
 
-1. Read [the team project plan](docs/project-plan.md).
-2. Use [ring contract v2](contracts/types.ts) as the shared API shape; Mortaza mirrors it in Pydantic/OpenAPI.
-3. Use [the middle-ring specimen record](fixtures/ring-demo.json); actual measurements remain unknown until scale/captures are validated.
-4. Copy `.env.example` to `.env` and supply your own sponsor credentials locally. Never commit `.env`.
-5. Work from the [ownership and ticket guide](CONTRIBUTING.md). There is no app startup command until the implementation scaffold is added.
+1. What we build tonight: [build plan v3](docs/build-plan.md). Rules: [project plan](docs/project-plan.md).
+2. Contract: [contracts/types.ts](contracts/types.ts) (v3), mirrored in `api/schemas.py`.
+3. Fixture: [ring-demo.json](fixtures/ring-demo.json). Raw photos stay local in `sample-photos/` (gitignored).
+4. Agents: [CLAUDE.md](CLAUDE.md) / AGENTS.md and [docs/claude-workflow.md](docs/claude-workflow.md).
 
 ## Substation application and roadmap
 

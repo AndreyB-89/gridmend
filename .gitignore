@@ -21,3 +21,10 @@ uploads/
 auth.json
 *-storage-state.json
 playwright/.auth/
+
+# Raw captures: faces/screens in background, video >100 MB. Select + review before publishing.
+sample-photos/
+*.mp4
+*.mov
+# Local demo run output
+evidence/raw/

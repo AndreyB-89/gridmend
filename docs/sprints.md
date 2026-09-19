@@ -1,5 +1,7 @@
 # GridMend sprint backlog
 
+> **Scope cut v3 (Sat 19:40):** use the task order in [build-plan.md](build-plan.md). GM-03 to GM-06 still apply, with manual clicks as the main input, thickness/groove by voice, and a missing-segment STL. GM-07 covers only case T4.
+
 Current source: [ring-demo plan](project-plan.md). All times are Barcelona CEST, 19–20 September 2026.
 
 **Publication status:** GitHub integration rejected issue creation after the organization transfer (403 Resource not accessible by integration). The nine tickets below are ready; no live issues or Projects board have been created by this update. Their canonical import payload is [sprint-issues.json](sprint-issues.json).
