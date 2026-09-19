@@ -24,6 +24,8 @@ Open the [component explorer](reference/substation-explorer.html) locally in a b
 
 The ring is a simple physical demonstration of the photo-and-voice-to-CAD step. Next comes one verified industrial accessory and a manufactured/inspected specimen. See the [product roadmap](docs/roadmap.md) and [five-minute pitch](docs/pitch.md).
 
+Preview the broader [energy asset explorer](reference/energy-asset-explorer.html): substation, BESS, PCS, solar, wind and thermal tabs with shared accessory and tooling candidates. [Scope and rebuild instructions](reference/energy-asset-library/README.md). The spinner remains the reconstruction demo.
+
 ## One demo
 
 Photograph the broken middle yellow ring beside a confirmed-size card. Use Nebius interpretation, geometric fitting and SLNG spoken answers to establish its dimensions/profile; generate an intact ring STEP/STL model and highlight the missing section. No printer is available: CAD files and computational checks are the deliverable, with no physical-fit claim.
