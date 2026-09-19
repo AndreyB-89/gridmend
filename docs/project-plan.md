@@ -10,7 +10,11 @@ The physical specimen is Andrii's **middle yellow ring**, separated from the nes
 
 **No printer is available. Success ends with checked CAD files and an interactive preview.** There is no physical-fit, free-motion, manufacturing-accuracy or service-qualification claim.
 
-Customer hypothesis: maintenance teams sometimes lack usable CAD or timely replacements for legacy, discontinued accessories. Andrii supplies one concrete example if available; do not invent lead times or assert demand has been validated. The ring is a reconstruction-method demonstrator, not a substation spare. The existing substation catalog is background only.
+**Application: legacy 110 kV substation accessories. Demonstration: reconstruct one simple broken ring.** Customer hypothesis: maintenance teams sometimes lack usable CAD or timely replacements for legacy, discontinued accessories. Andrii supplies one concrete example if available; do not invent lead times or assert demand has been validated.
+
+The existing substation work remains a product foundation: a generic 110/10 kV schematic across 10 equipment families, 36 illustrative component-type records, and 27 draft manufacturing options across 13 records. It provides the intended component-identification and process-selection context. The ring demonstrates the geometric reconstruction step in a controlled physical example; it does not establish industrial suitability.
+
+**Roadmap:** existing substation/library foundation → ring photo-and-voice-to-CAD demonstration → one verified industrial accessory → manufactured/inspected specimen → controlled asset workflow. See [product roadmap](roadmap.md) for gates and candidate categories, and [pitch](pitch.md) for the presentation. No additional application features are added to this weekend's ring scope. All catalog manufacturing candidates remain NOT_APPROVED.
 
 This plan supersedes the plate plan and contract v1.1. Historical material is retained under `docs/archive/` and `contracts/archive/`; the current contract is `contracts/types.ts`. No new database, complex revision protocol or plate generator is required.
 
@@ -37,9 +41,9 @@ References: [ID-1 dimensions](https://www.iso.org/standard/31432.html), [planar 
 
 | MoSCoW | Deliverable |
 | --- | --- |
-| **Must** | One damaged middle ring; known-scale top/side capture; operator-adjustable target/card outlines; real Nebius interpretation; real SLNG voice answers; dimension confirmation; one axisymmetric ring CAD generator; damaged/restored comparison; actual STEP/STL/JSON downloads; independent file checks; five acceptance cases; actual sponsor evidence; recording and submission. |
+| **Must** | One damaged middle ring; known-scale top/side capture; operator-adjustable target/card outlines; real Nebius interpretation; real SLNG voice answers; dimension confirmation; one axisymmetric ring CAD generator; damaged/restored comparison; actual STEP/STL/JSON downloads; independent file checks; five acceptance cases; actual sponsor evidence; pitch showing the existing substation/catalog foundation and industrial roadmap; recording and submission. |
 | **Should** | Automatic edge detection with manual correction; spoken questions through SLNG TTS; side-profile polygon capture for visible bevels; held-out intact-photo comparison; stable hosted demo if existing deployment is quick. |
-| **Could** | A second ring size using the same generator; contextual link to the existing substation model. |
+| **Could** | A second ring size using the same generator; an in-app link to the existing substation model. The substation/catalog story is already required in the pitch. |
 | **Won't** | Printing or fit claims; the full spinner mechanism; hidden joint reconstruction; arbitrary image-to-exact-CAD; generative meshes presented as manufacturing CAD; new model training; cups or plates as a second main path; full substation scene rebuild; SQL database; accounts; idempotency/revision/hash framework; automatic machine control; unmute, telephony, translation; a fourth sponsor integration. |
 
 Andrii protects scope. No new template, provider or feature after integration freeze. Manual edge correction is an honest supported interaction, not a hidden backstage operation. Loss of a core function is reported as a gap, not reclassified as success.
@@ -64,7 +68,7 @@ Keep provider credentials server-side. Use the team laptop/local server as the b
 
 | Owner | Deliverables | File ownership |
 | --- | --- | --- |
-| **Andrii — product / scope / experiment** | Prepare specimen and captures; confirm scale/profile truth; run acceptance cases; operate Galtea once wrapper exists; preserve evidence; pitch and submit. | `fixtures/`, `evidence/`, `docs/` |
+| **Andrii — product / scope / experiment** | Prepare specimen and captures; confirm scale/profile truth; run acceptance cases; operate Galtea once wrapper exists; preserve evidence; prepare the substation/catalog roadmap visual; pitch and submit. | `fixtures/`, `evidence/`, `docs/` |
 | **Valentin — geometry / inference / CAD** | Nebius reasoning; OpenCV fitting; CAD/profile generator and checks; small inspection/generation backend; Galtea callable wrapper. | `engine/`, `cad/`, `evals/`, `api/routes/inspect.py`, `api/routes/generate.py`, backend bootstrap |
 | **Mortaza — interaction / voice / integration** | Capture UI, microphone + SLNG endpoint, parameter confirmation, Three.js preview, downloads, local/hosted serving, browser verification. | `web/`, `api/routes/voice.py`, `api/routes/files.py`, deployment |
 
@@ -252,16 +256,20 @@ Also exercise one provider timeout, microphone denial and edited-dimension previ
 
 ## Demo script
 
-| Time | Operator/narration | Evidence |
-| --- | --- | --- |
-| 0:00–0:30 | Andrii holds up broken middle ring and states the unavailable-part hypothesis. | Physical specimen; explicitly a lab proxy for future maintenance use. |
-| 0:30–1:15 | Mortaza loads damaged photos; confirms scale and selected ring. | Detected/corrected card and surviving contours. |
-| 1:15–2:00 | App asks one relevant question; Andrii answers through SLNG and confirms the value. | Actual voice changes a parameter/question state. No hard-coded prerecorded success. |
-| 2:00–3:15 | Generate; rotate model; highlight restored region; download STEP/STL. | Actual output mesh, CAD checks and profile/accuracy limitations. |
-| 3:15–4:15 | Valentin shows the real Galtea failure, fix and rerun. | Genuine evidence. Use T4 only if it actually failed; otherwise show the discovered case. |
-| 4:15–5:00 | Andrii connects demonstration to legacy accessories and names next validation step. | No printer/fit claim; next step is manufactured specimen plus independent dimensional/fit test. |
+**Show the substation application first, the ring reconstruction next, then the industrial roadmap.** Andrii uses existing assets; no new substation UI build. Full wording and judge Q&A: [pitch.md](pitch.md).
 
-Three-minute version: problem 0:00–0:20; photo/scale 0:20–0:50; voice 0:50–1:20; CAD/download 1:20–2:15; failure/fix and limitations 2:15–3:00.
+| Time | Say / show | Evidence boundary |
+| --- | --- | --- |
+| **0:00–0:35** | Show the existing generic 110 kV substation model and point to an accessory category. “Our application is maintenance of legacy substation equipment, where a replacement accessory or its CAD may be difficult to obtain.” | Label the scene generic and the availability problem a hypothesis unless supported by a real example. |
+| **0:35–0:55** | Hold up the broken middle ring. “This simple specimen lets us demonstrate one essential step: recovering missing geometry from photos and an engineer's answers.” | The ring is a lab proxy. It is not a substation-qualified part. |
+| **0:55–2:40** | Run damaged image + card calibration + spoken clarification. Show the surviving arcs, missing segment and confirmed dimensions. | Real Nebius/SLNG calls if working; mark replay/manual corrections openly. |
+| **2:40–3:20** | Rotate the generated ring; show restored geometry and actual STEP/STL downloads. | Show independent export checks and any profile approximation. No printer is available; fit and motion are untested. |
+| **3:20–4:00** | Show a genuine Galtea-discovered failure, the fix and rerun. | If no failure was discovered, report that rather than fabricating a story. |
+| **4:00–4:40** | Return to the catalog: “We already have an illustrative component library and draft manufacturing routes. The next stage connects this reconstruction workflow to one verified industrial accessory.” Show polymer AM, CNC metal and sheet-fabrication candidates. | Library records are authored screening proposals, not approved replacements or implemented reconstruction coverage. |
+| **4:40–5:00** | “Our next validation is one real accessory, a reviewed material/process choice and an independently inspected specimen.” Name the partner/evidence sought. | No invented customer commitment, savings, accuracy or deployment claim. |
+
+Three-minute version: substation application 0:00–0:25; ring photo/voice 0:25–1:25; CAD/download 1:25–2:00; actual failure/fix 2:00–2:30; industrial roadmap and next validation 2:30–3:00.
+
 
 Fallback: after a provider timeout, explicitly switch to a recorded run and show when it was captured. Keep CAD generation live if its engine works. A static CAD file/recording is backup evidence, not proof the current run reconstructed the object. Rehearse twice before submission.
 
@@ -277,4 +285,5 @@ Project done when:
 - [ ] No physical-print/fit claim; profile approximation and photo-derived measurement limitations are explicit.
 - [ ] Actual Nebius and SLNG traces saved; genuine Galtea discovery/fix/rerun and survey saved, or missing prize evidence marked incomplete.
 - [ ] Team can restart the build using README commands added by implementation owners.
+- [ ] Pitch distinguishes the existing substation/catalog foundation, demonstrated ring behavior and future industrial validation; no catalog-based reproducibility percentage.
 - [ ] Final repo, video, sample CAD and evidence links work; receipt saved before Sunday 11:00.

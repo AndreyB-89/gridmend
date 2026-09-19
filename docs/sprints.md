@@ -232,3 +232,7 @@ Open [the organization Projects page](https://github.com/orgs/HackBarna-GridMend
 Use the built-in Status columns Todo / In progress / Done. Optional: add a Sprint single-select field with S0, S1, S2, S3, S4 and populate it from the issue-title prefix. For this one-weekend event, custom iterations/automation are unnecessary. Keep due times in issue bodies; assign real teammate usernames when known.
 
 The connected tool set has no Projects creation/write operation. Repo Issues remain sufficient to work from if a board is not created.
+
+## Pitch update within existing tickets
+
+GM-09 includes the substation/library opening and industrial-roadmap closing in [pitch.md](pitch.md). Andrii prepares an existing-asset visual during GM-07/GM-08 evidence collection. This is presentation work within the current tickets; no tenth implementation ticket or new substation feature is added.

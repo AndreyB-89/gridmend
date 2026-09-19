@@ -5,7 +5,7 @@
     "owner": "Andrii",
     "due": "Sat 18:15",
     "title": "[S0][GM-01] Confirm middle-ring specimen, scale and damaged capture set",
-    "body": "**Owner:** Andrii\n**Sprint:** S0\n**Due (Barcelona CEST):** Sat 18:15\n**Dependencies:** None\n\n## Done when\n\n- [ ] Confirm the card's actual size or supply a known-size alternative; record unknown until verified.\n- [ ] Capture the broken middle ring from top and side with usable card edges and plane alignment; preserve intact comparison photos separately.\n- [ ] Record profile observations, missing segment and T1–T5 expected outcomes; do not publish raw background screens or bystanders.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Andrii\n**Sprint:** S0\n**Due (Barcelona CEST):** Sat 18:15\n**Dependencies:** None\n\n## Done when\n\n- [ ] Confirm the card's actual size or supply a known-size alternative; record unknown until verified.\n- [ ] Capture the broken middle ring from top and side with usable card edges and plane alignment; preserve intact comparison photos separately.\n- [ ] Record profile observations, missing segment and T1\u2013T5 expected outcomes; do not publish raw background screens or bystanders.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-02",
@@ -37,7 +37,7 @@
     "owner": "Valentin",
     "due": "Sat 21:00",
     "title": "[S2][GM-05] Connect Nebius interpretation, targeted questions and generation backend",
-    "body": "**Owner:** Valentin\n**Sprint:** S2\n**Due (Barcelona CEST):** Sat 21:00\n**Dependencies:** GM-03, GM-04\n\n## Done when\n\n- [ ] Nebius combines damaged-image observations with reviewed voice answers and requests missing evidence.\n- [ ] POST inspect/generate follow the v2 contract; fixed templates only, bounded inputs and actionable failure responses.\n- [ ] Provide a Galtea callable wrapper for the same dialogue/interpretation path; T2–T5 fixtures remain distinct from acoustic evaluation.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Valentin\n**Sprint:** S2\n**Due (Barcelona CEST):** Sat 21:00\n**Dependencies:** GM-03, GM-04\n\n## Done when\n\n- [ ] Nebius combines damaged-image observations with reviewed voice answers and requests missing evidence.\n- [ ] POST inspect/generate follow the v2 contract; fixed templates only, bounded inputs and actionable failure responses.\n- [ ] Provide a Galtea callable wrapper for the same dialogue/interpretation path; T2\u2013T5 fixtures remain distinct from acoustic evaluation.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-06",
@@ -61,7 +61,7 @@
     "owner": "Mortaza; Andrii supports acceptance/recording",
     "due": "Sat integration freeze 22:05; stop 23:00",
     "title": "[S3][GM-08] Freeze integration, pass five cases and save a restartable demo",
-    "body": "**Owner:** Mortaza; Andrii supports acceptance/recording\n**Sprint:** S3\n**Due (Barcelona CEST):** Sat integration freeze 22:05; stop 23:00\n**Dependencies:** GM-06, GM-07\n\n## Done when\n\n- [ ] T1–T5 pass or remaining gaps are recorded; no new providers/templates/interfaces after 22:05.\n- [ ] Export checks and two full successful journeys are recorded; README contains actual restart instructions.\n- [ ] Save demo recording, sample CAD, evidence and morning blocker list before the hard 23:00 stop; no overnight work.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Mortaza; Andrii supports acceptance/recording\n**Sprint:** S3\n**Due (Barcelona CEST):** Sat integration freeze 22:05; stop 23:00\n**Dependencies:** GM-06, GM-07\n\n## Done when\n\n- [ ] T1\u2013T5 pass or remaining gaps are recorded; no new providers/templates/interfaces after 22:05.\n- [ ] Export checks and two full successful journeys are recorded; README contains actual restart instructions.\n- [ ] Save demo recording, sample CAD, evidence and morning blocker list before the hard 23:00 stop; no overnight work.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   },
   {
     "code": "GM-09",
@@ -69,6 +69,6 @@
     "owner": "Andrii; both developers support blockers",
     "due": "Sun code freeze 09:30; target submission 10:30; deadline 11:00",
     "title": "[S4][GM-09] Rehearse, freeze code and submit by Sunday deadline",
-    "body": "**Owner:** Andrii; both developers support blockers\n**Sprint:** S4\n**Due (Barcelona CEST):** Sun code freeze 09:30; target submission 10:30; deadline 11:00\n**Dependencies:** GM-08\n\n## Done when\n\n- [ ] Resume 09:00; fix integrated blockers only, rerun affected cases and tag final build at 09:30.\n- [ ] Complete two timed rehearsals; verify repo, video, CAD and sponsor evidence links with honest CAD-only/approximation labels.\n- [ ] Save actual submission receipt by 10:30 where possible and reserve 10:30–11:00 for access/submission problems.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
+    "body": "**Owner:** Andrii; both developers support blockers\n**Sprint:** S4\n**Due (Barcelona CEST):** Sun code freeze 09:30; target submission 10:30; deadline 11:00\n**Dependencies:** GM-08\n\n## Done when\n\n- [ ] Resume 09:00; fix integrated blockers only, rerun affected cases and tag final build at 09:30.\n- [ ] Complete two timed rehearsals; verify repo, video, CAD and sponsor evidence links with honest CAD-only/approximation labels.\n- [ ] Save actual submission receipt by 10:30 where possible and reserve 10:30\u201311:00 for access/submission problems.\n\n- [ ] Pitch shows the existing 110 kV model/component library, the ring reconstruction result and the next industrial validation as distinct evidence levels; use docs/pitch.md.\n\n## Evidence\n\nAttach actual output/test results, commit and peer review.\n\n[Current plan](https://github.com/HackBarna-GridMend/gridmend/blob/main/docs/project-plan.md)\n"
   }
 ]

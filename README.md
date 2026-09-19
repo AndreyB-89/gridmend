@@ -16,6 +16,12 @@ Repository starter: revised middle-ring project plan, small TypeScript contract 
 4. Copy `.env.example` to `.env` and supply your own sponsor credentials locally. Never commit `.env`.
 5. Work from the [ownership and ticket guide](CONTRIBUTING.md). There is no app startup command until the implementation scaffold is added.
 
+## Substation application and roadmap
+
+The existing generic 110/10 kV substation model and component library remain part of GridMend: **36 illustrative component records and 27 draft manufacturing options across 13 records**. They provide the context for future identification and selection of 3D-printing, CNC, sheet-fabrication or specialist routes. The options are engineering-review candidates, not approved spares or current reconstruction coverage.
+
+The ring is a simple physical demonstration of the photo-and-voice-to-CAD step. Next comes one verified industrial accessory and a manufactured/inspected specimen. See the [product roadmap](docs/roadmap.md) and [five-minute pitch](docs/pitch.md).
+
 ## One demo
 
 Photograph the broken middle yellow ring beside a confirmed-size card. Use Nebius interpretation, geometric fitting and SLNG spoken answers to establish its dimensions/profile; generate an intact ring STEP/STL model and highlight the missing section. No printer is available: CAD files and computational checks are the deliverable, with no physical-fit claim.
