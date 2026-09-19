@@ -51,7 +51,7 @@ The reference scene is generic and is not a real utility asset or manufacturing 
 
 The working name is provisional; no trademark or domain clearance has been performed. Licensing has not been selected. Confirm hackathon reuse rules before incorporating reference assets into the judged build.
 
-## Contributors 
+## Contributors 
 
 - Andrii 
 - Mortaza 
