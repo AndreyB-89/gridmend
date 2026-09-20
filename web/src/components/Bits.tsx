@@ -103,14 +103,12 @@ export function StateMark({ state }: { state: "ok" | "draft" | "open" | "unknown
   return <span className="state unknown">Unknown</span>;
 }
 
-/** Provider mode. MOCK and REPLAY are orange so nobody mistakes them for live calls. */
-export function ModePill({ label, mode }: { label: string; mode: Mode | "OFFLINE" | null }) {
+export function ModeLabel({ label, mode }: { label: string; mode: Mode | "OFFLINE" | null }) {
   const m = mode ?? "OFFLINE";
   const text = m === "LIVE" ? "live" : m === "MOCK" ? "MOCK" : m === "REPLAY" ? "REPLAY" : "offline";
   return (
-    <span className={`live mode-${m.toLowerCase()}`} title={`${label} is in ${m} mode`}>
-      <i />
-      {label} <span>{text}</span>
+    <span className="mode-label" title={`${label} is in ${m} mode`}>
+      {label} · {text}
     </span>
   );
 }

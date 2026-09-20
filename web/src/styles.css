@@ -124,7 +124,9 @@ main.cols > .right { grid-column: 2; grid-row: 2; }
 .state.unknown { color: var(--muted); font-weight: 500; }
 .trace { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; font-size: 13px; font-weight: 800; }
 .trace.live { background: var(--ok-tint); color: #11643c; }
-.trace.fake { background: var(--mock); color: var(--graphite); }
+.trace.fake { height: auto; padding: 0; color: var(--muted); font-weight: 400; }
+.mode-label { display: block; margin-top: 6px; font-size: 13px; font-weight: 400; color: var(--muted); }
+.v-top .mode-label { color: #b9bfc8; margin-left: 12px; }
 .typed-tag { font-size: 14px; font-weight: 700; padding: 2px 8px; border: 2px solid var(--graphite); border-radius: 6px; }
 
 /* ---------- left ---------- */
