@@ -325,6 +325,8 @@ main.cols {
 .build-btn:disabled { background: var(--steel); border-color: var(--steel-2); color: var(--muted); }
 .build-btn:not(:disabled):hover { background: var(--graphite-2); }
 .build-note { margin: 8px 2px 0; font-size: 16px; color: var(--muted); }
+.download-panel { padding: 20px; flex: none; }
+.download-stl { width: 100%; margin-top: 16px; white-space: normal; text-align: center; }
 .checks { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .checks li { display: flex; align-items: center; gap: 6px; font-size: 15px; min-height: 32px; padding: 0 10px 0 4px; border-radius: 8px; background: var(--ok-tint); font-weight: 700; }
 .checks li.fail { background: #fde3e0; }

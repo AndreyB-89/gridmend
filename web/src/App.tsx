@@ -13,12 +13,11 @@ import type {
 } from "./types.ts";
 import { PhotoCanvas, SET_COLORS, SET_LABEL, type ClickSet, type Clicks } from "./components/PhotoPanel.tsx";
 import { TalkBar } from "./components/TalkBar.tsx";
-import { manualEdit } from "./manualEntry.ts";
 import { RingViewer } from "./components/RingViewer.tsx";
-import { SectionView, type SectionGroove, type SectionVal } from "./components/SectionView.tsx";
-import { Icon, ModePill, SourceChip, StateMark, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
+import { MissingPartDownload } from "./components/MissingPartDownload.tsx";
+import { Icon, ModePill, SourceChip, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
 
-import { useVideo, VideoPreview, VideoDimensions, VideoChat, VideoResult } from "./video.tsx";
+import { useVideo, VideoPreview, VideoChat, VideoResult } from "./video.tsx";
 
 type DimKey = "outer_diameter" | "inner_diameter" | "thickness";
 const DIM_KEYS: DimKey[] = ["outer_diameter", "inner_diameter", "thickness"];
@@ -44,13 +43,6 @@ const EMPTY_CLICKS: Clicks = { corners: [], outer: [], inner: [] };
 const SET_MIN: Record<ClickSet, number> = { corners: 4, outer: 3, inner: 3 };
 const SET_MAX: Record<ClickSet, number> = { corners: 4, outer: 60, inner: 60 };
 const CORNER_NAMES = ["top-left", "top-right", "bottom-right", "bottom-left"];
-const CHECK_LABEL: Record<string, string> = {
-  SOLID: "Solid",
-  DIMENSIONS: "Dimensions",
-  PROFILE: "Profile",
-  STEP_REIMPORT: "STEP reopens",
-  STL_MESH: "STL watertight",
-};
 
 type TalkOrigin = "voice" | "typed";
 type Item =
@@ -122,8 +114,6 @@ export default function App() {
   const [editing, setEditing] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const [manual, setManual] = useState<Record<DimKey, string>>({ outer_diameter: "", inner_diameter: "", thickness: "" });
-  const [manualError, setManualError] = useState<Partial<Record<DimKey, string>>>({});
   const [limitations, setLimitations] = useState<string[]>([]);
 
   // ---- generate ----
@@ -441,22 +431,6 @@ export default function App() {
     void sendEdit(t.slice(0, 2000), "typed");
   };
 
-  // A number typed into the size table: same draft → Confirm path as a spoken edit.
-  const sendManual = (k: DimKey) => {
-    const shown = { outer_diameter: views.outer_diameter.value, inner_diameter: views.inner_diameter.value, thickness: views.thickness.value };
-    const r = manualEdit(accepted, k, manual[k], shown);
-    if (r.kind === "empty") return;
-    if (r.kind === "error" || r.kind === "same") {
-      setManualError((m) => ({ ...m, [k]: r.kind === "error" ? r.message : "This value is already saved." }));
-      return;
-    }
-    setManualError((m) => ({ ...m, [k]: undefined }));
-    setManual((m) => ({ ...m, [k]: "" }));
-    setLog((l) => l.map((i) => (i.kind === "draft" && i.status === "pending" ? { ...i, status: "cancelled" } : i)));
-    push({ kind: "me", text: `${DIM_LABEL[k]}: ${r.res.candidate![k].value_mm} mm`, origin: "typed", trace: null, status: "sent" });
-    push({ kind: "draft", res: r.res, origin: "typed", base: accepted, status: "pending" });
-  };
-
   const openType = () => {
     setTypeOpen(true);
     setTimeout(() => typeRef.current?.focus(), 30);
@@ -523,48 +497,13 @@ export default function App() {
       const res = await api.generate({ ...accepted, missing_arc_deg: missingArc });
       setGen(res);
     } catch (e) {
-      fail("Build CAD", e, () => void runGenerate());
+      fail("Reconstruct the missing part", e, () => void runGenerate());
     } finally {
       setGenerating(false);
     }
   };
 
   // ---- derived display values ----
-  type RowView = { value: number | null; origin: Origin | null; state: "ok" | "draft" | "open" | "unknown"; photoKey?: "outer_diameter" | "inner_diameter" };
-  const pendingCand = pendingDraft?.res.candidate ?? null;
-  const dimView = (k: DimKey): RowView => {
-    const a = accepted[k];
-    if (pendingCand && pendingCand[k].value_mm !== a.value_mm && pendingCand[k].value_mm !== null) {
-      const o = pendingDraft?.origin === "typed" ? "typed" : originOf(pendingCand[k].source);
-      return { value: pendingCand[k].value_mm, origin: o, state: "draft" };
-    }
-    if (a.confirmed && a.value_mm !== null) return { value: a.value_mm, origin: originOf(a.source), state: "ok" };
-    if (k !== "thickness") {
-      const v = photoValue(k);
-      if (v !== null) return { value: v, origin: "photo", state: "open", photoKey: k };
-    }
-    if (a.value_mm !== null) return { value: a.value_mm, origin: originOf(a.source), state: "open" };
-    return { value: null, origin: null, state: "unknown" };
-  };
-  const views = { outer_diameter: dimView("outer_diameter"), inner_diameter: dimView("inner_diameter"), thickness: dimView("thickness") };
-
-  const grooveDraft = pendingCand && !sameGroove(pendingCand.groove, accepted.groove);
-  const grooveNow = grooveDraft ? pendingCand!.groove : accepted.groove;
-  const grooveKnown = accepted.groove !== null || accepted.profile_confirmed;
-
-  const secState = (s: RowView["state"]): SectionVal["state"] => (s === "ok" ? "ok" : s === "unknown" ? "unknown" : "draft");
-  const wall: SectionVal = (() => {
-    const o = views.outer_diameter, i = views.inner_diameter;
-    if (o.value === null || i.value === null || o.value <= i.value) return { value: null, state: "unknown" };
-    return { value: (o.value - i.value) / 2, state: o.state === "ok" && i.state === "ok" ? "ok" : "draft" };
-  })();
-  const secGroove: SectionGroove | null = grooveNow
-    ? { depth: grooveNow.depth_mm, width: grooveNow.width_mm, state: grooveDraft ? "draft" : accepted.profile_confirmed ? "ok" : "draft" }
-    : null;
-
-  const confirmedCount =
-    DIM_KEYS.filter((k) => accepted[k].confirmed && accepted[k].value_mm !== null).length + (accepted.profile_confirmed ? 1 : 0);
-
   const step = !photoUrl ? 1 : !inspect ? 2 : !canBuild ? 3 : 4;
   const stepText = ["Add a photo", "Check the points", "Answer and confirm", "Build the part"][step - 1];
 
@@ -625,8 +564,8 @@ export default function App() {
       )}
 
       <main className="cols">
-        {/* ---------------- LEFT: photo + dimensions ---------------- */}
-        <section className="col left" aria-label="Photo and dimensions">
+        {/* ---------------- LEFT: photo or video ---------------- */}
+        <section className="col left" aria-label="Photo or video">
           <div className="panel photo">
             {video.active ? <VideoPreview video={video} onUpload={onUpload}/> : !photoUrl ? (
               <div className="photo-empty">
@@ -797,106 +736,6 @@ export default function App() {
             )}
           </div>
 
-          {video.active ? <VideoDimensions job={video.job}/> : <div className="panel dims">
-            <div className="dims-head">
-              <h2>Dimensions</h2>
-              <small>{confirmedCount} of 4 confirmed</small>
-            </div>
-            {DIM_KEYS.map((k) => {
-              const v = views[k];
-              return (
-                <div className={`dim ${v.state}`} key={k}>
-                  <span className="name">{DIM_LABEL[k]}</span>
-                  <span className="val">
-                    {v.value === null ? "?" : mm(v.value)}
-                    <small>mm</small>
-                  </span>
-                  <span className="meta">
-                    {v.origin && <SourceChip origin={v.origin} label={v.origin === "typed" ? "You" : undefined} />}
-                    <StateMark state={v.state} />
-                  </span>
-                  {v.photoKey && (
-                    <button type="button" className="btn small confirm-row" onClick={() => confirmPhotoDims([v.photoKey!])}>
-                      Confirm {DIM_LABEL[k].toLowerCase()}
-                    </button>
-                  )}
-                  {v.state === "draft" && pendingDraft?.res.candidate && (
-                    <button type="button" className="btn small confirm-row" onClick={() => confirmDraft(pendingDraft)}>
-                      Confirm {DIM_LABEL[k].toLowerCase()}
-                    </button>
-                  )}
-                  <form
-                    className="dim-type"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      sendManual(k);
-                    }}
-                  >
-                    <label className="sr" htmlFor={`m-${k}`}>
-                      Type the {DIM_LABEL[k].toLowerCase()} in millimetres
-                    </label>
-                    <input
-                      id={`m-${k}`}
-                      value={manual[k]}
-                      inputMode="decimal"
-                      autoComplete="off"
-                      placeholder="Type mm"
-                      maxLength={12}
-                      aria-invalid={!!manualError[k]}
-                      aria-describedby={manualError[k] ? `me-${k}` : undefined}
-                      onChange={(e) => {
-                        const t = e.target.value;
-                        setManual((m) => ({ ...m, [k]: t }));
-                        if (manualError[k]) setManualError((m) => ({ ...m, [k]: undefined }));
-                      }}
-                    />
-                    <button type="submit" className="btn small" disabled={!manual[k].trim() || editing}>
-                      Set
-                    </button>
-                  </form>
-                  {manualError[k] && (
-                    <p className="dim-err" id={`me-${k}`} role="alert">
-                      {manualError[k]}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-            <div className={`dim ${grooveDraft ? "draft" : accepted.profile_confirmed ? "ok" : grooveNow ? "open" : "unknown"}`}>
-              <span className="name">Inner groove</span>
-              <span className="val">
-                {grooveNow ? (
-                  <>
-                    {mm(grooveNow.depth_mm)} × {mm(grooveNow.width_mm)}
-                    <small>mm</small>
-                  </>
-                ) : accepted.profile_confirmed ? (
-                  <span className="val-text">None</span>
-                ) : (
-                  "?"
-                )}
-              </span>
-              <span className="meta">
-                {grooveNow && <SourceChip origin={grooveDraft ? (pendingDraft?.origin === "typed" ? "typed" : "voice") : "voice"} label={pendingDraft?.origin === "typed" && grooveDraft ? "You" : undefined} />}
-                <StateMark state={grooveDraft ? "draft" : accepted.profile_confirmed ? "ok" : grooveNow ? "open" : "unknown"} />
-              </span>
-            </div>
-            {inspect?.fit && (
-              <div className="fitline">
-                <span>
-                  <b>{Math.round(inspect.fit.support_deg)}°</b> of edge seen
-                </span>
-                <span>
-                  Fit error <b>{mm(inspect.fit.rms_residual_mm, 2)} mm</b>
-                </span>
-              </div>
-            )}
-            {previous.length > 0 && (
-              <button type="button" className="link undo" onClick={undoAccepted}>
-                Undo last change
-              </button>
-            )}
-          </div>}
         </section>
 
         {/* ---------------- CENTRE: conversation ---------------- */}
@@ -1019,8 +858,8 @@ export default function App() {
                 <p className="q">Is this the ring profile?</p>
                 <p>
                   {accepted.groove
-                    ? `Rectangle wall with an inner groove, ${mm(accepted.groove.depth_mm)} mm deep and ${mm(accepted.groove.width_mm)} mm wide. See Section A–A.`
-                    : "A plain rectangle wall, with no groove. See Section A–A. To add a groove, say its depth and width."}
+                    ? `Rectangle wall with an inner groove, ${mm(accepted.groove.depth_mm)} mm deep and ${mm(accepted.groove.width_mm)} mm wide.`
+                    : "A plain rectangle wall, with no groove. To add a groove, say its depth and width."}
                 </p>
                 <div className="bubble-actions">
                   {accepted.groove ? (
@@ -1044,15 +883,28 @@ export default function App() {
             )}
             {canBuild && !gen && !generating && (
               <Ai>
-                <p>All four values are confirmed. Press Build CAD on the right.</p>
+                <p>All values are confirmed. You can now reconstruct the missing part.</p>
+                {!missingArc && <p className="soft">Check the photo points and analyse it to identify the missing arc first.</p>}
+                <div className="bubble-actions">
+                  <button type="button" className="btn go" disabled={!missingArc} onClick={() => void runGenerate()}>
+                    Reconstruct missing part
+                  </button>
+                </div>
               </Ai>
             )}
+            {generating && <Ai><p>Reconstructing the missing part…</p></Ai>}
             {gen && (
               <Ai>
                 <p>
-                  The CAD is built. {gen.checks.filter((c) => c.passed).length} of {gen.checks.length} checks passed. The files are on the right.
+                  {gen.missing_segment_stl_url ? "Your missing part is ready. Download the STL file on the right." : "No missing-part STL was produced. Check the photo fit and missing arc."}
                 </p>
               </Ai>
+            )}
+            {previous.length > 0 && (
+              <button type="button" className="link undo" onClick={undoAccepted}>Undo last change</button>
+            )}
+            {(gen?.limitations.length || limitations.length) > 0 && (
+              <Ai tone="warn"><p>{[...new Set([...(gen?.limitations ?? []), ...limitations])].join(" ")}</p></Ai>
             )}
             </>}
           </div>
@@ -1060,7 +912,7 @@ export default function App() {
           <p className="talk-hint">
             {video.active
               ? 'Describe what to build and include your measurements in one message. You can give ring radii and a rectangular cross section. Review the readback and press Confirm and build; the result appears on the right.'
-              : <>Say or type one size, for example “thickness is 6 mm”. You can also type a number in the Dimensions table. Nothing is used until you press Confirm.</>}
+              : <>Say or type one size, for example “thickness is 6 mm”. Nothing is used until you press Confirm.</>}
           </p>
           {(typeOpen || video.active) && (
             <form
@@ -1093,7 +945,7 @@ export default function App() {
           <TalkBar busy={editing || video.busy} onError={showError} onTranscript={onTranscript} onTypeInstead={openType} />
         </section>
 
-        {/* ---------------- RIGHT: 3D + section + build ---------------- */}
+        {/* ---------------- RIGHT: 3D + download ---------------- */}
         <section className="col right" aria-label="Rebuilt part">
           {video.active ? <VideoResult video={video}/> : <>
           <div className={`viewer ${gen ? "has-model" : ""}`}>
@@ -1111,7 +963,7 @@ export default function App() {
                 <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
                   <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" strokeWidth="6" strokeDasharray="6 6" />
                 </svg>
-                <p>No 3D model yet. It appears here after Build CAD.</p>
+                <p>No 3D model yet. Confirm your measurements in the conversation to reconstruct the missing part.</p>
               </div>
             )}
             {gen && (
@@ -1130,58 +982,15 @@ export default function App() {
             )}
           </div>
 
-          <div className={`panel sec-panel ${gen ? "compact" : ""}`}>
-            <SectionView
-              wall={wall}
-              thickness={{ value: views.thickness.value, state: secState(views.thickness.state) }}
-              groove={secGroove}
-              grooveKnown={grooveKnown}
-              profileConfirmed={accepted.profile_confirmed}
+          <div ref={dlRef}>
+            <MissingPartDownload
+              url={gen?.missing_segment_stl_url ?? null}
+              message={gen?.missing_segment_stl_url
+                ? "Your missing part is ready to download."
+                : generating
+                  ? "Reconstructing the missing part…"
+                  : "The STL file will be available here once the missing part is reconstructed and checked."}
             />
-          </div>
-
-          <div className="panel build">
-            <button type="button" className={`build-btn ${gen ? "again" : ""}`} disabled={!canBuild || generating} onClick={() => void runGenerate()}>
-              {generating ? "Building CAD…" : gen ? "Build CAD again" : "Build CAD"}
-            </button>
-            {!canBuild && <p className="build-note">Still to confirm: {missing.join(", ")}. I only build from values you checked.</p>}
-            {canBuild && !missingArc && <p className="build-note">No missing arc from the photo fit. Only the full ring will be exported.</p>}
-            {gen && (
-              <>
-                <div className="dl" ref={dlRef}>
-                  <a href={gen.step_url} download>
-                    STEP
-                  </a>
-                  <a href={gen.stl_url} download>
-                    Full ring STL
-                  </a>
-                  {gen.missing_segment_stl_url && (
-                    <a className="red" href={gen.missing_segment_stl_url} download>
-                      Missing part STL
-                    </a>
-                  )}
-                  <a href={gen.summary_url} download>
-                    Summary
-                  </a>
-                </div>
-                <ul className="checks">
-                  {gen.checks.map((c) => (
-                    <li key={c.name} className={c.passed ? "pass" : "fail"} title={c.detail}>
-                      <span className="ck">{c.passed ? <Icon name="ok" /> : "✗"}</span>
-                      {CHECK_LABEL[c.name] ?? c.name}
-                    </li>
-                  ))}
-                </ul>
-                <p className="honest">No physical fit tested. No printer available.</p>
-              </>
-            )}
-            {(gen?.limitations.length || limitations.length) > 0 && (
-              <ul className="limits">
-                {[...new Set([...(gen?.limitations ?? []), ...limitations])].map((l, i) => (
-                  <li key={i}>{l}</li>
-                ))}
-              </ul>
-            )}
           </div>
           </>}
         </section>
