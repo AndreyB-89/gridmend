@@ -30,6 +30,8 @@ from api.schemas import (
     ProfileEditResult,
     VoiceResult,
 )
+from engine.providers import devin
+from engine.providers.devin import DevinRequest
 
 load_dotenv()
 
@@ -320,6 +322,29 @@ async def generate(req: GenerateRequest):
         limitations=out.limitations,
         physical_fit_verified=False,
     )
+
+
+# ------------------------------------------------- Devin: parts with no template (STUB)
+
+
+@app.post("/api/devin/session")
+async def devin_session(body: DevinRequest):
+    """Start a Devin session for a part that `cad/ring.py` cannot make.
+
+    STUB: not wired to the UI. Without DEVIN_API_KEY it answers in MOCK and sends nothing.
+    Only confirmed dimensions are allowed: a value that is null or not confirmed is refused,
+    because we never invent a size.
+    """
+    bad = [name for name, dim in body.dimensions.items() if dim.value_mm is None or not dim.confirmed]
+    if bad:
+        raise fail(422, "NEEDS_INPUT", f"These sizes are not confirmed yet: {', '.join(sorted(bad))}.")
+    dims = {name: dim.value_mm for name, dim in body.dimensions.items()}
+    prompt = devin.build_prompt(body.part_name, list(body.observations), dims, body.operator_note)
+    try:
+        out = await asyncio.to_thread(devin.start_session, prompt)
+    except Exception as exc:
+        raise provider_error(exc)
+    return out
 
 
 # ---------------------------------------------------------------- files
