@@ -115,8 +115,18 @@ export function VideoPreview({video, onUpload}: {video: VideoControl; onUpload: 
     : <video src={source} controls playsInline style={{width: '100%', height: '100%', objectFit: 'contain', display: 'block'}} />) : <p className="small-note">Original preview is not available.</p>}</div>
     <div className="change-photo"><label className="link file-link">Change photo or video<input type="file" accept="image/jpeg,image/png,image/webp,video/*,.mov,.mkv" onChange={e => onUpload(e.target.files?.[0])}/></label></div></>;
 }
+function conversationText(text: string): string | null {
+  if (text === 'Confirmed. Building and checking the complete intact reference first. Reconstruction will then start automatically.'
+    || /^The complete reference passed its checks\. It retains the specified hole\/cavity\. Sending the original (photo|video), reference STL and specification to Devin\.$/.test(text)) return null;
+  if (text === 'Devin is reconstructing the missing material against the fixed reference. Candidate 1 of at most 101.') return 'Reconstructing the missing part.';
+  return text.replace(/^I will first prepare the complete intact reference for the missing-part reconstruction\.\n\n/, '');
+}
+
 export function VideoChat({video}: {video: VideoControl}) {
-  return <>{video.job?.messages.map((m,i) => <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{m.text}</p></div></div>)}
+  return <>{video.job?.messages.map((m,i) => {
+    const text = m.role === 'user' ? m.text : conversationText(m.text);
+    return text === null ? null : <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{text}</p></div></div>;
+  })}
     {!video.job && !video.error && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Loading your {video.mediaKind}…</p></div></div>}
     {video.job?.status === 'INGESTING' && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Preparing your {video.mediaKind} for reconstruction…</p></div></div>}
     {video.job?.status === 'AWAITING_CONFIRMATION' && <div className="msg ai draft"><div className="av">AI</div><div className="bubble"><p>Confirm the measurements and intact shape shown above. I will build the complete reference and start reconstruction.</p><div className="bubble-actions"><button className="btn go" disabled={video.busy} onClick={() => void video.confirm()}>Confirm and build</button></div></div></div>}

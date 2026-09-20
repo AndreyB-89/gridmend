@@ -6,7 +6,7 @@ from api.schemas import ReferenceSpec, SuppliedMeasurement
 NUMBER = r'(?:\d+(?:[.,]\d+)?|\.\d+)'
 UNIT = r'(?:millimet(?:er|re)s?|mm|centimet(?:er|re)s?|cm|inches|inch|in)(?=$|[\s.,;:!?×)]|x(?=\s*\d))'
 SECTION = re.compile(
-    r'\b(?:(square|rectangular)\s+)?(?:cross[\s-]+section|section)\s*(?:is|of|to|=|:)?\s*'
+    r'\b(?:(square|rectangular|rectangle)\s+)?(?:cross[\s-]+section|section)\s*(?:is|of|to|=|:)?\s*'
     r'('+NUMBER+r')\s*('+UNIT+r')?\s*[x×]\s*('+NUMBER+r')\s*('+UNIT+r')?', re.I)
 FEATURES = ['outer_diameter', 'inner_diameter', 'diameter', 'bottom_diameter', 'top_diameter', 'height', 'length', 'width', 'wall_thickness', 'bottom_thickness', 'cavity_depth', 'groove_depth', 'groove_width']
 CUP_THICKNESS_MM = 1.5
@@ -62,6 +62,19 @@ def required(spec):
 
 def values(spec):
     return {k: v.value_mm for k, v in spec.dimensions.items() if v.value_mm is not None}
+
+
+def confirms_build(text: str, spec: ReferenceSpec, message_id: str) -> bool:
+    if not re.match(r'\s*(?:please\s+)?(?:build|generate|create|reconstruct)\b', text, re.I):
+        return False
+    if '?' in text or re.search(r"\b(?:not|don['’]t|never|wait|hold|later|before|after|unless|until|without|preview|draft)\b", text, re.I):
+        return False
+    return not questions(spec) and all(
+        spec.dimensions[k].source == 'operator'
+        and spec.dimensions[k].message_id == message_id
+        and bool(spec.dimensions[k].source_text)
+        for k in required(spec)
+    )
 
 
 def questions(spec):

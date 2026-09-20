@@ -6,7 +6,7 @@ HackBarna AI Summit Barcelona 2026 R&D demonstrator for damaged substation acces
 
 ## Current status
 
-Photo and video reconstruction with a conversation for measured dimensions, trusted CadQuery reference templates, SLNG/Nebius adapters with visible MOCK mode, and a React + Three.js viewer. The pitch UI places the conversation in the left two-thirds and the uploaded media above the 3D viewer in the right third. The standalone substation route explorer remains available below.
+Photo and video reconstruction with a conversation for measured dimensions, trusted CadQuery reference templates, SLNG/Nebius adapters with visible MOCK mode, and a React + Three.js viewer. The pitch UI places the conversation in the left five-eighths and the uploaded media above the 3D viewer in two equal-height halves of the right three-eighths. The standalone substation route explorer remains available below.
 
 ## Run it
 
@@ -26,9 +26,9 @@ Tests: `uv run pytest -q`. Whole path: `scripts/smoke.sh`.
 
 Upload a photo or video, then give the final goal and measured dimensions in the chat. No reference card is required. Photos accept JPEG, PNG and WebP up to 20 MiB; videos retain the 512 MiB and 180-second limits.
 
-> Build the missing part of this ring with rectangular cross section, outer diameter 40 mm, inner diameter 36 mm and height 9 mm.
+> Build the missing part of this ring with rectangle cross section : outer diamter 4cm, inner diameter 3.4cm, height 0.9cm
 
-The Nebius/LangChain agent treats the **complete intact reference** as an intermediate step. The operator does not need to request it separately. It calls the trusted measurement tool, asks for missing or conflicting values, and waits for **Confirm and build**. Its CadQuery tool then exports and checks the complete STL and STEP, retaining the ring's central hole. Dimensions and confirmation come from the operator; model-generated code is never executed.
+The Nebius/LangChain agent treats the **complete intact reference** as an intermediate step. The operator does not need to request it separately. A direct build request with all required measurements and units confirms those values and starts automatically. The example above accepts “rectangle” and the “diamter” typo, converts the measurements to 40 mm outer diameter, 34 mm inner diameter and 9 mm height, and needs no extra confirmation click. Missing, uncertain or conflicting values still prompt questions. Descriptions without a build instruction, measurements carried over from earlier messages, and design defaults retain **Confirm and build**. Its CadQuery tool exports and checks the complete STL and STEP, retaining the ring's central hole. Dimensions and confirmation come from the operator; model-generated code is never executed.
 
 Only after these checks does FIMI send the original photo or video, full reference STL, specification and frame manifest to Devin. The existing independent validator and same-session correction loop check the proposed missing material.
 

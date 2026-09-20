@@ -89,7 +89,7 @@ export default function App() {
               <div className="msg ai">
                 <div className="av" aria-hidden="true">AI</div>
                 <div className="bubble">
-                  <p>Hello. I rebuild broken parts from a photo or video. You confirm every measurement before I build.</p>
+                  <p>Hello. Upload a photo or video, then ask me to build the missing part with your measurements.</p>
                 </div>
               </div>
             )}
@@ -110,7 +110,7 @@ export default function App() {
             )}
           </div>
 
-          <p className="talk-hint">Describe the part and include your measurements. Review and confirm before building.</p>
+          <p className="talk-hint">Ask me to build and include the shape and all measurements to start automatically.</p>
           {(typeOpen || reconstruction.active) && (
             <form className="typebox" onSubmit={e => { e.preventDefault(); void sendTyped(); }}>
               <label className="sr" htmlFor="typeIn">Describe the reconstruction and measurements</label>

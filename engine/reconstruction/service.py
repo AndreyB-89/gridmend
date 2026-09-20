@@ -13,7 +13,7 @@ from engine.providers.common import ProviderError
 from engine.providers.devin import ARTIFACT_NAMES, Devin
 from engine.providers.video_nebius import construct_reference, dialogue, model
 from engine.reconstruction.media import inspect_photo, inspect_video
-from engine.reconstruction.specification import empty_spec, questions, required, values
+from engine.reconstruction.specification import confirms_build, empty_spec, questions, required, values
 from engine.reconstruction.store import Store, atomic_json, digest, redact
 from engine.reconstruction.validator import validate
 
@@ -123,7 +123,10 @@ class Reconstruction:
             job['requests'].append(request_id)
             self.store.say(job, response)
             self.store.event(job, 'supplied_measurements', specification=job['spec'], unresolved=job['questions'])
-            self.store.transition(job, status)
+            if status == 'AWAITING_CONFIRMATION' and confirms_build(text, ReferenceSpec.model_validate(job['spec']), request_id):
+                self.queue_reference(job, request_id)
+            else:
+                self.store.transition(job, status)
             return self.public(job)
 
     def confirm(self, job_id, revision):
@@ -135,22 +138,25 @@ class Reconstruction:
                 return self.public(job)  # repeated clicks never start new jobs/sessions
             if job['questions'] or job['status'] != 'AWAITING_CONFIRMATION':
                 raise ValueError('Resolve the questions and supply all required measurements first.')
-            spec = ReferenceSpec.model_validate(job['spec'])
-            if questions(spec):
-                raise ValueError(' '.join(questions(spec)))
-            for k in required(spec):
-                if not spec.dimensions[k].source_text or (spec.dimensions[k].source == 'operator' and not spec.dimensions[k].message_id):
-                    raise ValueError('Every dimension needs operator measurement or explicit design-default provenance.')
-                spec.dimensions[k].confirmed = True
-            spec.confirmed = True
-            job['spec'] = spec.model_dump()
-            job['started_at'] = time.time()
-            self.store.event(job, 'confirmed', specification=job['spec'])
-            self.store.say(job, 'Confirmed. Building and checking the complete intact reference first. ' + (
-                'MOCK stops after the reference; no Devin session will be started.'
-                if job['mode'] == 'MOCK' and not self.offline_double else 'Reconstruction will then start automatically.'))
-            self.store.transition(job, 'QUEUED')
+            self.queue_reference(job)
             return self.public(job)
+
+    def queue_reference(self, job, message_id=None):
+        spec = ReferenceSpec.model_validate(job['spec'])
+        if job['questions'] or questions(spec):
+            raise ValueError(' '.join(job['questions'] or questions(spec)))
+        for k in required(spec):
+            if not spec.dimensions[k].source_text or (spec.dimensions[k].source == 'operator' and not spec.dimensions[k].message_id):
+                raise ValueError('Every dimension needs operator measurement or explicit design-default provenance.')
+            spec.dimensions[k].confirmed = True
+        spec.confirmed = True
+        job['spec'] = spec.model_dump()
+        job['started_at'] = time.time()
+        self.store.event(job, 'confirmed', specification=job['spec'], message_id=message_id)
+        self.store.say(job, 'Confirmed. Building and checking the complete intact reference first. ' + (
+            'MOCK stops after the reference; no Devin session will be started.'
+            if job['mode'] == 'MOCK' and not self.offline_double else 'Reconstruction will then start automatically.'))
+        self.store.transition(job, 'QUEUED')
 
     def invalidate(self, job_id):
         with self.store.lock(job_id):
