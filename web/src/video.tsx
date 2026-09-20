@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VideoState } from './types.ts';
 import { ModePill } from './components/Bits.tsx';
 import { RingViewer } from './components/RingViewer.tsx';
-import { MissingPartDownload } from './components/MissingPartDownload.tsx';
 
 const TERMINAL = new Set(['ACCEPTED', 'FAILED', 'RETRY_EXHAUSTED', 'TIME_LIMIT', 'PROVIDER_LIMIT', 'STALE', 'MOCK_REFERENCE_READY']);
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -107,15 +106,7 @@ export function VideoResult({video}: {video: VideoControl}) {
   const j = video.job;
   const full = j?.reference.find(a => a.name === 'reference_full.stl');
   const repair = j?.status === 'ACCEPTED' ? j.result.find(a => a.name === 'repair_part_aligned.stl') : null;
-  const downloadMessage = repair
-    ? 'Your missing part is ready to download.'
-    : j?.status === 'MOCK_REFERENCE_READY'
-      ? 'MOCK mode creates only the complete reference. No missing-part STL is available.'
-      : j && TERMINAL.has(j.status)
-        ? 'No validated missing-part STL is available. Check the conversation for details.'
-        : 'The STL file will be available here once the missing part is reconstructed and checked.';
-  return <><div className={`viewer ${full ? 'has-model' : ''}`}><div className="v-top"><div><h2>{repair ? 'Proposed missing part' : full ? 'Complete reference' : 'Reconstruction'}</h2><p className="sub">{j?.status.replaceAll('_',' ').toLowerCase() ?? 'Waiting for video'}</p></div>{j && <ModePill label="Video workflow" mode={j.mode}/>}</div>
+  return <div className={`viewer ${full ? 'has-model' : ''}`}><div className="v-top"><div><h2>{repair ? 'Proposed missing part' : full ? 'Complete reference' : 'Reconstruction'}</h2><p className="sub">{j?.status.replaceAll('_',' ').toLowerCase() ?? 'Waiting for video'}</p></div>{j && <ModePill label="Video workflow" mode={j.mode}/>}</div>
     {full ? <RingViewer ringUrl={full.url} segmentUrl={repair?.url ?? null} referenceMode/> : <div className="viewer-empty"><p>No 3D model yet. Confirm the intact shape and measurements first.</p></div>}
-    {full && <div className="legend"><span className="pill"><span className="sw y"/>Complete reference</span>{repair && <span className="pill"><span className="sw"/>Proposed missing material</span>}</div>}</div>
-    <MissingPartDownload url={repair?.url ?? null} message={downloadMessage}/></>;
+    {full && <div className="legend"><span className="pill"><span className="sw y"/>Complete reference</span>{repair && <span className="pill"><span className="sw"/>Proposed missing material</span>}</div>}</div>;
 }

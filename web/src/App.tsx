@@ -14,7 +14,6 @@ import type {
 import { PhotoCanvas, SET_COLORS, SET_LABEL, type ClickSet, type Clicks } from "./components/PhotoPanel.tsx";
 import { TalkBar } from "./components/TalkBar.tsx";
 import { RingViewer } from "./components/RingViewer.tsx";
-import { MissingPartDownload } from "./components/MissingPartDownload.tsx";
 import { Icon, SourceChip, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
 
 import { useVideo, VideoPreview, VideoChat, VideoResult } from "./video.tsx";
@@ -117,13 +116,6 @@ export default function App() {
   // ---- generate ----
   const [generating, setGenerating] = useState(false);
   const [gen, setGen] = useState<GenerateResult | null>(null);
-  const dlRef = useRef<HTMLDivElement | null>(null);
-  // After a build, bring the downloads into view (short projector screens).
-  useEffect(() => {
-    if (!gen) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    dlRef.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
-  }, [gen]);
 
   const threadRef = useRef<HTMLDivElement>(null);
   const typeRef = useRef<HTMLInputElement>(null);
@@ -854,7 +846,7 @@ export default function App() {
             {gen && (
               <Ai>
                 <p>
-                  {gen.missing_segment_stl_url ? "Your missing part is ready. Download the STL file on the right." : "No missing-part STL was produced. Check the photo fit and missing arc."}
+                  {gen.missing_segment_stl_url ? "Your missing part is ready. View the reconstruction on the right." : "No missing-part STL was produced. Check the photo fit and missing arc."}
                 </p>
               </Ai>
             )}
@@ -903,7 +895,7 @@ export default function App() {
           <TalkBar busy={editing || video.busy} onError={showError} onTranscript={onTranscript} onTypeInstead={openType} />
         </section>
 
-        {/* ---------------- RIGHT: 3D + download ---------------- */}
+        {/* ---------------- RIGHT: 3D ---------------- */}
         <section className="col right" aria-label="Rebuilt part">
           {video.active ? <VideoResult video={video}/> : <>
           <div className={`viewer ${gen ? "has-model" : ""}`}>
@@ -940,16 +932,6 @@ export default function App() {
             )}
           </div>
 
-          <div ref={dlRef}>
-            <MissingPartDownload
-              url={gen?.missing_segment_stl_url ?? null}
-              message={gen?.missing_segment_stl_url
-                ? "Your missing part is ready to download."
-                : generating
-                  ? "Reconstructing the missing part…"
-                  : "The STL file will be available here once the missing part is reconstructed and checked."}
-            />
-          </div>
           </>}
         </section>
       </main>
