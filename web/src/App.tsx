@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ApiFailure, api, errorMessage, type AutoDetect, type DemoClicks, type Health } from "./api.ts";
+import { ApiFailure, api, errorMessage, type AutoDetect, type DemoClicks } from "./api.ts";
 import type {
   Dimension,
   GenerateRequest,
@@ -15,7 +15,7 @@ import { PhotoCanvas, SET_COLORS, SET_LABEL, type ClickSet, type Clicks } from "
 import { TalkBar } from "./components/TalkBar.tsx";
 import { RingViewer } from "./components/RingViewer.tsx";
 import { MissingPartDownload } from "./components/MissingPartDownload.tsx";
-import { Icon, ModePill, SourceChip, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
+import { Icon, SourceChip, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
 
 import { useVideo, VideoPreview, VideoChat, VideoResult } from "./video.tsx";
 
@@ -80,8 +80,6 @@ let nextId = 1;
 export default function App() {
   const video = useVideo();
   // ---- global ----
-  const [health, setHealth] = useState<Health | null>(null);
-  const [healthError, setHealthError] = useState(false);
   const [error, setError] = useState<ErrorState | null>(null);
 
   // ---- photo + points ----
@@ -142,26 +140,6 @@ export default function App() {
   }, []);
 
   const showError = useCallback((msg: string) => setError({ msg }), []);
-
-  // ---- health polling ----
-  useEffect(() => {
-    let alive = true;
-    const poll = () =>
-      api
-        .health()
-        .then((h) => {
-          if (!alive) return;
-          setHealth(h);
-          setHealthError(false);
-        })
-        .catch(() => alive && setHealthError(true));
-    void poll();
-    const id = window.setInterval(poll, 15000);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
-  }, []);
 
   useEffect(() => {
     if (!sidePhoto) {
@@ -510,9 +488,6 @@ export default function App() {
   const showProfileAsk =
     !!inspect && !pendingDraft && !editing && !accepted.profile_confirmed && (accepted.thickness.confirmed || accepted.groove !== null);
 
-  const nebiusMode = healthError ? "OFFLINE" : (health?.modes?.nebius ?? null);
-  const slngMode = healthError ? "OFFLINE" : (health?.modes?.slng ?? null);
-
   // ---------------------------------------------------------------- render
   return (
     <div className="app">
@@ -522,22 +497,9 @@ export default function App() {
             <path d="M15 3a12 12 0 0 1 0 24" fill="none" stroke="#FFD21F" strokeWidth="5" />
             <path d="M15 27A12 12 0 0 1 15 3" fill="none" stroke="#E63B2E" strokeWidth="5" />
           </svg>
-          <h1>GridMend</h1>
+          <h1>FIMI</h1>
         </div>
         <p className="job">Rebuild a broken part from a photo or video</p>
-        <div className="status" aria-label="Provider connections">
-          {healthError ? (
-            <span className="live mode-offline">
-              <i />
-              API offline
-            </span>
-          ) : (
-            <>
-              <ModePill label="Nebius" mode={nebiusMode} />
-              <ModePill label="SLNG" mode={slngMode} />
-            </>
-          )}
-        </div>
       </header>
 
       {error && (
@@ -854,7 +816,7 @@ export default function App() {
             )}
 
             {showProfileAsk && (
-              <Ai who="GridMend" whoNote="one last check">
+              <Ai who="FIMI" whoNote="one last check">
                 <p className="q">Is this the ring profile?</p>
                 <p>
                   {accepted.groove
