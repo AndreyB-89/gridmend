@@ -747,7 +747,12 @@ def auto_detect(image_bgr: np.ndarray) -> AutoDetect:
         warnings.append("Card not found. Put the card flat on the table next to the ring, or click its 4 corners.")
     if chosen is None:
         if side:
-            warnings.append("The photo looks like it is taken from the side. Take it from above, with the card flat next to the ring.")
+            # A flat blob is a ring seen from the side, but also any long thin part seen from above
+            # (a stirrer stick trips this with ratio 0.09). Say what is true in both cases.
+            warnings.append(
+                "I could not find a ring in this photo. If the part is a ring, take the photo from above, "
+                "with the card flat next to it."
+            )
         elif cut:
             warnings.append("The ring touches the edge of the photo. Take the photo with the whole ring in view.")
         else:
