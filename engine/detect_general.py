@@ -27,6 +27,8 @@ MAX_SIDE = 900  # working size in pixels; the card is still ~200 px wide at this
 BG_KERNEL = 51  # median blur that removes the part but keeps the table shading
 MIN_DIFF = 8  # Lab units: below this the pixel is table
 L_STRONG = 45  # a lightness jump this big is an edge, not a soft shadow
+SHADOW_COLOUR_TOL = 1.25  # channels scaled this evenly means less light, not another colour
+SHADOW_MAX_RATIO = 0.92  # and the pixel must be darker than the table
 MIN_AREA_FRAC = 0.0015  # smaller blobs are dirt, text or noise
 SECOND_PART_FRAC = 0.30  # a second blob this big means more than one part in the photo
 
@@ -60,9 +62,28 @@ def _foreground(small_bgr: np.ndarray) -> np.ndarray:
     thr_c = max(MIN_DIFF, float(np.median(chroma) + 5.0 * np.median(np.abs(chroma - np.median(chroma)))))
     light = diff[:, :, 0].astype(np.float32)
     mask = ((chroma > thr_c) | ((light > L_STRONG) & (chroma > 0.5 * thr_c))).astype(np.uint8) * 255
+    mask[_shadow(small_bgr)] = 0
     k3 = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k3, iterations=2)
     return cv2.morphologyEx(mask, cv2.MORPH_OPEN, k3, iterations=1)
+
+
+def _shadow(small_bgr: np.ndarray) -> np.ndarray:
+    """True where the pixel is the same colour as the table, only darker.
+
+    Less light does not change the colour of a surface, it only scales every
+    channel by about the same factor. So a shadow on wood has blue/green/red
+    ratios near each other and all below 1. A real part changes the ratios.
+    """
+    img = small_bgr.astype(np.float32) + 1.0
+    h, w = img.shape[:2]
+    tiny = cv2.resize(img, (max(8, w // 4), max(8, h // 4)), interpolation=cv2.INTER_AREA)
+    k = BG_KERNEL if BG_KERNEL % 2 else BG_KERNEL + 1
+    bg = cv2.resize(cv2.medianBlur(tiny.astype(np.uint8), k).astype(np.float32) + 1.0, (w, h),
+                    interpolation=cv2.INTER_LINEAR)
+    ratio = img / bg
+    lo, hi = ratio.min(axis=2), ratio.max(axis=2)
+    return (hi / np.maximum(lo, 1e-6) < SHADOW_COLOUR_TOL) & (hi < SHADOW_MAX_RATIO)
 
 
 def _drop_card(mask: np.ndarray, quad: np.ndarray | None) -> np.ndarray:
