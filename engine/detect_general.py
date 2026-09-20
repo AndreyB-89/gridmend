@@ -42,6 +42,11 @@ OUTER_POINTS = 16  # points offered on the outer edge
 INNER_POINTS = 12  # points offered on the edge of the hole
 MIN_HOLE_POINTS = 12  # a smaller hole outline is noise, not an inner edge
 HULL_TOL_PX = 3.0  # an outline point this close to the convex hull is on the outer skin
+GROW_WALL_FRAC = 0.55  # a hole edge may move out by this share of the way to the outer edge
+GROW_PEAK_SHARE = 0.70  # an edge must be this share of the clearest edge inside the wall
+GROW_MAX_PX = 40.0  # and never further than this, so a dark bore cannot run away
+GROW_EDGE_KEEP = 0.6  # the edge found outside must be this clear next to the hole's own edge
+GROW_MIN_STEPS = 6  # half-pixel steps to skip: the blur of the hole's own edge
 SECOND_PART_FRAC = 0.30  # a second blob this big means more than one part in the photo
 
 
@@ -135,6 +140,66 @@ def _shadow(small_bgr: np.ndarray, lab: np.ndarray) -> np.ndarray:
     # itself, and without this the rule eats a few millimetres of the part.
     rough = cv2.erode(rough, np.ones((3, 3), np.uint8))
     return even | (rough > 0)
+
+
+def _edge_strength(small_bgr: np.ndarray) -> np.ndarray:
+    """How strong an edge is at each pixel, on lightness and on colour."""
+    lab = cv2.cvtColor(cv2.GaussianBlur(small_bgr, (3, 3), 0), cv2.COLOR_BGR2Lab).astype(np.float32)
+    g = np.zeros(lab.shape[:2], np.float32)
+    for ch in (0, 2):
+        gx = cv2.Scharr(lab[:, :, ch], cv2.CV_32F, 1, 0)
+        gy = cv2.Scharr(lab[:, :, ch], cv2.CV_32F, 0, 1)
+        g = np.maximum(g, cv2.magnitude(gx, gy))
+    return g
+
+
+def _grow_hole(grad: np.ndarray, hole: np.ndarray, outer: np.ndarray) -> np.ndarray:
+    """Push the edge of a hole out to the top edge of the wall.
+
+    Looking into a through hole from the side, the far wall hides part of the
+    opening: what the camera sees is the floor through the hole, smaller than the
+    opening and pushed to one side. So from each point of the visible hole we walk
+    outwards and stop at the FIRST clear edge we meet, which is the top edge of the
+    wall. A photo taken straight down has flat top face out there, no edge, and
+    nothing moves.
+    """
+    h, w = grad.shape
+    centre = hole.mean(0)
+    radius = float(np.mean(np.hypot(*(hole - centre).T)))
+    hull = outer.reshape(-1, 1, 2).astype(np.float32)
+    here = np.median(grad[np.clip(np.round(hole[:, 1]), 0, h - 1).astype(int),
+                          np.clip(np.round(hole[:, 0]), 0, w - 1).astype(int)])
+    floor_level = max(GROW_EDGE_KEEP * float(here), 1e-6)
+    out = []
+    for p in hole:
+        u = p - centre
+        n = float(np.hypot(*u))
+        if n < 1e-6:
+            out.append(p)
+            continue
+        u = u / n
+        # Never walk more than part of the way to the outer edge: whatever the
+        # opening is, it lies inside the wall of the part.
+        wall = abs(cv2.pointPolygonTest(hull, (float(p[0]), float(p[1])), True))
+        reach = max(2.0, min(GROW_MAX_PX, GROW_WALL_FRAC * wall))
+        steps = np.arange(0.0, reach + 0.5, 0.5, dtype=np.float32)
+        xs = np.clip(p[0] + steps * u[0], 0, w - 1)
+        ys = np.clip(p[1] + steps * u[1], 0, h - 1)
+        line = grad[np.round(ys).astype(int), np.round(xs).astype(int)]
+        # The clearest edge inside the wall, not the first one: the wall itself can
+        # carry grooves and shading, and those edges are weaker than its top edge.
+        tail = line[GROW_MIN_STEPS:]
+        moved = p
+        if len(tail):
+            # The first edge that is really an edge: as clear as the hole's own rim,
+            # and at least half as clear as the best edge inside the wall. A groove
+            # or the shading of the wall does not pass both.
+            level = max(floor_level, GROW_PEAK_SHARE * float(tail.max()))
+            hits = np.nonzero(tail >= level)[0]
+            if len(hits):
+                moved = p + steps[GROW_MIN_STEPS + int(hits[0])] * u
+        out.append(moved)
+    return np.asarray(out, np.float64)
 
 
 def _drop_card(mask: np.ndarray, quad: np.ndarray | None) -> np.ndarray:
@@ -247,6 +312,9 @@ def detect_part(image_bgr: np.ndarray, card_size_mm: tuple[float, float] = CARD_
         for j, c in enumerate(cs)
         if hier[0][j][3] != -1 and cv2.contourArea(c) > 0.01 * outer_area
     ]
+    if holes:  # a hole seen at an angle looks smaller than it is
+        grad = _edge_strength(small)
+        holes = [_grow_hole(grad, hole, outer) for hole in holes]
 
     outline_mm: list[tuple[float, float]] = []
     holes_mm: list[list[tuple[float, float]]] = []
