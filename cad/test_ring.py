@@ -25,6 +25,7 @@ def synthetic_request(**over) -> GenerateRequest:
         inner_diameter=_dim(SYN_INNER),
         thickness=_dim(SYN_T),
         groove=SYN_GROOVE,
+        shape=None,
         profile_rz_mm=None,
         profile_basis="SIMPLIFIED_RECTANGLE",
         profile_confirmed=True,

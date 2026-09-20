@@ -26,6 +26,7 @@ from api.schemas import (
     GenerateResult,
     InspectContext,
     InspectResult,
+    PartShape,
     ProfileEditRequest,
     ProfileEditResult,
     VoiceResult,
@@ -129,6 +130,30 @@ def demo_photo():
 # ---------------------------------------------------------------- inspect
 
 
+def _shape_of(image, card_size_mm) -> tuple[PartShape | None, bytes | None]:
+    """Trace whatever part lies next to the card. Works with or without a hole.
+
+    This is the general path: it never assumes a ring. It returns (None, None) when
+    the detector found nothing it trusts, and (shape, overlay) otherwise. The numbers
+    are a proposal like every other number here, and the operator confirms them.
+    """
+    from engine.detect_general import detect_part
+
+    try:
+        part = detect_part(image, tuple(card_size_mm))
+    except Exception:  # noqa: BLE001 - a detector failure must not fail the whole photo
+        return None, None
+    if not part.outline_mm or part.length_mm is None or part.width_mm is None:
+        return None, part.overlay_png
+    return PartShape(
+        outline_mm=[(float(x), float(y)) for x, y in part.outline_mm],
+        holes_mm=[[(float(x), float(y)) for x, y in h] for h in part.holes_mm],
+        length_mm=part.length_mm,
+        width_mm=part.width_mm,
+        confidence="HIGH" if part.confidence == "HIGH" else "LOW",
+    ), part.overlay_png
+
+
 @app.post("/api/inspect", response_model=InspectResult)
 async def inspect(top_image: UploadFile = File(...), context: str = Form(...), side_image: UploadFile | None = File(None)):
     import cv2
@@ -157,6 +182,7 @@ async def inspect(top_image: UploadFile = File(...), context: str = Form(...), s
     warnings: list[str] = []
     question: str | None = None
     fit = None
+    shape = None
     overlay_url = None
     cal = ctx.top_calibration
 
@@ -167,15 +193,31 @@ async def inspect(top_image: UploadFile = File(...), context: str = Form(...), s
     else:
         if not cal.size_confirmed:
             warnings.append("Card size is not measured yet. All millimetre values depend on it.")
-        try:
-            out = fit_ring(image, list(cal.corners_px), cal.card_size_mm, ctx.outer_edge_points_px, ctx.inner_edge_points_px)
-            fit = out.fit
-            warnings.extend(out.warnings)
+        # A ring fit needs an inner edge. A cup, a stick or a bracket has none, and
+        # that is not an error: the general detector still measures its outline.
+        # Only a half-given inner edge (1 or 2 points) is a real mistake.
+        if len(ctx.inner_edge_points_px) >= 3:
+            try:
+                out = fit_ring(image, list(cal.corners_px), cal.card_size_mm,
+                               ctx.outer_edge_points_px, ctx.inner_edge_points_px)
+                fit = out.fit
+                warnings.extend(out.warnings)
+                overlay = ARTIFACTS / f"overlay-{new_id()}.png"
+                overlay.write_bytes(out.overlay_png)
+                overlay_url = file_url(overlay)
+            except FitError as exc:
+                question = str(exc)
+        elif ctx.inner_edge_points_px:
+            question = "Please click at least 3 points on the inner edge, or none at all if the part has no hole."
+
+        shape, shape_overlay = _shape_of(image, cal.card_size_mm)
+        # With no ring fit there is no ring overlay, so show what the detector traced.
+        if overlay_url is None and shape_overlay:
             overlay = ARTIFACTS / f"overlay-{new_id()}.png"
-            overlay.write_bytes(out.overlay_png)
+            overlay.write_bytes(shape_overlay)
             overlay_url = file_url(overlay)
-        except FitError as exc:
-            question = str(exc)
+        if shape is None and fit is None and question is None:
+            question = "I could not find the part in this photo. Click the outer edge, or take the photo again."
 
     # Smaller JPEGs for the vision model; the fit already used full resolution.
     def small_jpeg(img):
@@ -188,7 +230,7 @@ async def inspect(top_image: UploadFile = File(...), context: str = Form(...), s
     side_jpeg = small_jpeg(side) if side is not None else None
     try:
         observations, llm_question, trace = await asyncio.wait_for(
-            asyncio.to_thread(interpret, top_jpeg, ctx, fit, side_jpeg), PROVIDER_TIMEOUT_S
+            asyncio.to_thread(interpret, top_jpeg, ctx, fit, side_jpeg, shape), PROVIDER_TIMEOUT_S
         )
     except asyncio.TimeoutError:
         raise fail(504, "TIMEOUT", "The vision model did not answer in time. Please retry.")
@@ -200,13 +242,14 @@ async def inspect(top_image: UploadFile = File(...), context: str = Form(...), s
         return Dimension(value_mm=round(value, 1), source="PHOTO", confirmed=False)
 
     return InspectResult(
-        status="REVIEW" if fit else "NEEDS_INPUT",
+        status="REVIEW" if (fit or shape) else "NEEDS_INPUT",
         observations=observations,
         question=question or llm_question,
         outer_diameter=photo_dim(fit.outer_diameter_mm) if fit else Dimension.unknown(),
         inner_diameter=photo_dim(fit.inner_diameter_mm) if fit else Dimension.unknown(),
         thickness=Dimension.unknown(),
         fit=fit,
+        shape=shape,
         top_overlay_url=overlay_url,
         warnings=warnings,
         trace=trace,
@@ -280,18 +323,40 @@ async def profile_edit(req: ProfileEditRequest):
 
 @app.post("/api/generate", response_model=GenerateResult)
 async def generate(req: GenerateRequest):
-    from cad.ring import CadError, NeedsInput, generate_ring, validate_request
+    # One rule picks the builder. A traced shape means any part: extrude the outline
+    # and cut its holes. No shape means a ring, which owns the groove and the
+    # missing arc, and whose circle fit is cleaner than a traced contour.
+    from cad.ring import CadError, NeedsInput
+
+    general = req.shape is not None
+    if general:
+        from cad.part import generate_part, validate
+
+        def build(design_id: str):
+            s = req.shape
+            return generate_part(s.outline_mm, s.holes_mm, req.thickness.value_mm, ARTIFACTS, design_id)
+
+        def check():
+            if not req.profile_confirmed:
+                raise NeedsInput("Please confirm the outline before building.")
+            t = req.thickness.value_mm if req.thickness.confirmed else None
+            validate(req.shape.outline_mm, req.shape.holes_mm, t)
+    else:
+        from cad.ring import generate_ring, validate_request
+
+        build = lambda design_id: generate_ring(req, ARTIFACTS, design_id)  # noqa: E731
+        check = lambda: validate_request(req)  # noqa: E731
 
     try:
-        validate_request(req)
+        check()
     except NeedsInput as exc:
         raise fail(422, "NEEDS_INPUT", str(exc))
     except CadError as exc:
         raise fail(422, "INVALID_INPUT", str(exc))
 
-    design_id = "ring-" + new_id()
+    design_id = ("part-" if general else "ring-") + new_id()
     try:
-        out = await asyncio.wait_for(asyncio.to_thread(generate_ring, req, ARTIFACTS, design_id), CAD_TIMEOUT_S)
+        out = await asyncio.wait_for(asyncio.to_thread(build, design_id), CAD_TIMEOUT_S)
     except asyncio.TimeoutError:
         raise fail(500, "CAD_FAILED", "CAD generation took longer than 30 seconds.")
     except CadError as exc:
@@ -317,7 +382,9 @@ async def generate(req: GenerateRequest):
         design_id=design_id,
         step_url=file_url(out.step_path),
         stl_url=file_url(out.stl_path),
-        missing_segment_stl_url=file_url(out.missing_stl_path) if out.missing_stl_path else None,
+        # Only the ring builder can say which segment is missing: it knows the part
+        # was a full circle. A general outline has no such template to compare with.
+        missing_segment_stl_url=file_url(out.missing_stl_path) if getattr(out, "missing_stl_path", None) else None,
         summary_url=file_url(summary),
         checks=out.checks,
         limitations=out.limitations,

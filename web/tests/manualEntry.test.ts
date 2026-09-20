@@ -9,6 +9,7 @@ const base = (od: number | null, id: number | null, th: number | null = null, gr
   inner_diameter: D(id, id !== null),
   thickness: D(th, th !== null),
   groove,
+  shape: null,
   profile_rz_mm: null,
   profile_basis: "SIMPLIFIED_RECTANGLE" as const,
   profile_confirmed: false,

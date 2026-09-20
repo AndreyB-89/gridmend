@@ -401,3 +401,14 @@ main.cols {
 .side-photo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
 .side-photo img { width: 64px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line, #ddd); }
 .side-photo span { flex: 1; min-width: 160px; font-size: 13px; }
+
+/* The traced outline, shown inside the question that asks to confirm it. */
+.bubble-shot {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 0.6rem 0 0.2rem;
+  border-radius: 10px;
+  border: 1px solid var(--line, #d6d9de);
+  background: #fff;
+}

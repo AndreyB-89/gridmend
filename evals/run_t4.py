@@ -25,7 +25,7 @@ def accepted_request(a: dict) -> GenerateRequest:
 
     g = a.get("groove")
     return GenerateRequest(
-        outer_diameter=d(a["outer_diameter_mm"]), inner_diameter=d(a["inner_diameter_mm"]),
+        shape=None, outer_diameter=d(a["outer_diameter_mm"]), inner_diameter=d(a["inner_diameter_mm"]),
         thickness=d(a["thickness_mm"]), groove=Groove(depth_mm=g[0], width_mm=g[1]) if g else None,
         profile_rz_mm=None, profile_basis="SIMPLIFIED_RECTANGLE", profile_confirmed=True,
         missing_arc_deg=None, purpose="DEMO_CAD_ONLY",

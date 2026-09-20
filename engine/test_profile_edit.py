@@ -17,7 +17,7 @@ def accepted(od=42.0, idm=30.0, th=None, groove=None) -> GenerateRequest:
         return Dimension(value_mm=v, source="PHOTO", confirmed=True) if v is not None else Dimension.unknown()
 
     return GenerateRequest(
-        outer_diameter=d(od), inner_diameter=d(idm), thickness=d(th), groove=groove, profile_rz_mm=None,
+        shape=None, outer_diameter=d(od), inner_diameter=d(idm), thickness=d(th), groove=groove, profile_rz_mm=None,
         profile_basis="SIMPLIFIED_RECTANGLE", profile_confirmed=True, missing_arc_deg=None, purpose="DEMO_CAD_ONLY",
     )
 

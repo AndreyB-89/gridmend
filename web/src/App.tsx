@@ -14,6 +14,7 @@ import type {
 import { PhotoCanvas, SET_COLORS, SET_LABEL, type ClickSet, type Clicks } from "./components/PhotoPanel.tsx";
 import { TalkBar } from "./components/TalkBar.tsx";
 import { manualEdit } from "./manualEntry.ts";
+import { isShapePart, missingFor, shapeSummary } from "./partMode.ts";
 import { RingViewer } from "./components/RingViewer.tsx";
 import { SectionView, type SectionGroove, type SectionVal } from "./components/SectionView.tsx";
 import { Icon, ModePill, SourceChip, StateMark, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
@@ -32,6 +33,7 @@ const INITIAL_ACCEPTED: GenerateRequest = {
   inner_diameter: EMPTY_DIM,
   thickness: EMPTY_DIM,
   groove: null,
+  shape: null,
   profile_rz_mm: null,
   profile_basis: "SIMPLIFIED_RECTANGLE",
   profile_confirmed: false,
@@ -357,6 +359,18 @@ export default function App() {
     try {
       const res = await api.inspect(photoFile, photoName, ctx, sidePhoto);
       setInspect(res);
+      // A part with no ring fit is built from its traced outline. Carry the shape
+      // into the model so the app asks the right questions; confirming comes later.
+      // Reading a photo is not an operator edit, so it does not go through
+      // applyAccepted: it must not become an Undo step the operator never made.
+      setGen(null);
+      setAccepted((a) =>
+        res.shape && !res.fit
+          ? { ...a, shape: res.shape, profile_basis: "OBSERVED", profile_confirmed: false }
+          : a.shape
+            ? { ...a, shape: null, profile_basis: "SIMPLIFIED_RECTANGLE", profile_confirmed: false }
+            : a,
+      );
       setGen(null);
       setShowFit(true);
       const id = push({ kind: "inspect", res });
@@ -491,6 +505,12 @@ export default function App() {
     push({ kind: "ai", text: "Nothing was saved. Say it again, or type it." });
   };
 
+  /** A part built from its outline: confirm the traced shape, not a ring profile. */
+  const answerOutline = () => {
+    applyAccepted({ ...accepted, profile_basis: "OBSERVED", groove: null, profile_rz_mm: null, profile_confirmed: true });
+    push({ kind: "ai", text: "Outline confirmed. It will be pushed up by the thickness you give." });
+  };
+
   const answerProfile = (withGroove: boolean) => {
     if (withGroove) {
       applyAccepted({ ...accepted, profile_confirmed: true });
@@ -502,9 +522,8 @@ export default function App() {
   };
 
   // ---- generate ----
-  const missing: string[] = [];
-  for (const k of DIM_KEYS) if (!(accepted[k].confirmed && accepted[k].value_mm !== null)) missing.push(DIM_LABEL[k].toLowerCase());
-  if (!accepted.profile_confirmed) missing.push("profile");
+  const shapePart = isShapePart(accepted);
+  const missing = missingFor(accepted);
   const canBuild = missing.length === 0;
   const missingArc = inspect?.fit?.missing_arc_deg ?? accepted.missing_arc_deg;
 
@@ -556,14 +575,17 @@ export default function App() {
     ? { depth: grooveNow.depth_mm, width: grooveNow.width_mm, state: grooveDraft ? "draft" : accepted.profile_confirmed ? "ok" : "draft" }
     : null;
 
-  const confirmedCount =
-    DIM_KEYS.filter((k) => accepted[k].confirmed && accepted[k].value_mm !== null).length + (accepted.profile_confirmed ? 1 : 0);
+  const confirmedCount = (shapePart ? ["thickness" as DimKey] : DIM_KEYS)
+    .filter((k) => accepted[k].confirmed && accepted[k].value_mm !== null).length + (accepted.profile_confirmed ? 1 : 0);
 
   const step = !photoUrl ? 1 : !inspect ? 2 : !canBuild ? 3 : 4;
   const stepText = ["Add a photo", "Check the points", "Answer and confirm", "Build the part"][step - 1];
 
+  // A part built from its outline is asked about the outline as soon as it is traced.
+  // A ring is asked about its cross-section, which only makes sense once a size is in.
   const showProfileAsk =
-    !!inspect && !pendingDraft && !editing && !accepted.profile_confirmed && (accepted.thickness.confirmed || accepted.groove !== null);
+    !!inspect && !pendingDraft && !editing && !accepted.profile_confirmed &&
+    (shapePart || accepted.thickness.confirmed || accepted.groove !== null);
 
   const nebiusMode = healthError ? "OFFLINE" : (health?.modes?.nebius ?? null);
   const slngMode = healthError ? "OFFLINE" : (health?.modes?.slng ?? null);
@@ -770,7 +792,7 @@ export default function App() {
                           }}
                         />
                       </label>
-                      <span className="small-note">Photo from the side, at ring height. It helps the AI see a groove, a step or wear.</span>
+                      <span className="small-note">Photo from the side, level with the part. It helps the AI see a groove, a step or wear.</span>
                     </>
                   )}
                 </div>
@@ -794,9 +816,15 @@ export default function App() {
           <div className="panel dims">
             <div className="dims-head">
               <h2>Dimensions</h2>
-              <small>{confirmedCount} of 4 confirmed</small>
+              <small>{confirmedCount} of {shapePart ? 2 : 4} confirmed</small>
             </div>
-            {DIM_KEYS.map((k) => {
+            {shapePart && accepted.shape && (
+              <div className="dim ok">
+                <span className="name">Outline</span>
+                <span className="val">{shapeSummary(accepted.shape)}</span>
+              </div>
+            )}
+            {(shapePart ? (["thickness"] as DimKey[]) : DIM_KEYS).map((k) => {
               const v = views[k];
               return (
                 <div className={`dim ${v.state}`} key={k}>
@@ -856,6 +884,7 @@ export default function App() {
                 </div>
               );
             })}
+            {!shapePart && (
             <div className={`dim ${grooveDraft ? "draft" : accepted.profile_confirmed ? "ok" : grooveNow ? "open" : "unknown"}`}>
               <span className="name">Inner groove</span>
               <span className="val">
@@ -875,6 +904,7 @@ export default function App() {
                 <StateMark state={grooveDraft ? "draft" : accepted.profile_confirmed ? "ok" : grooveNow ? "open" : "unknown"} />
               </span>
             </div>
+            )}
             {inspect?.fit && (
               <div className="fitline">
                 <span>
@@ -1007,7 +1037,31 @@ export default function App() {
               </Ai>
             )}
 
-            {showProfileAsk && (
+            {showProfileAsk && shapePart && (
+              <Ai who="GridMend" whoNote="one last check">
+                <p className="q">Is this the outline of the part?</p>
+                <p>
+                  The photo was traced: {shapeSummary(accepted.shape)}. The part will be built by pushing this
+                  outline up by the thickness you give. This is not a ring, so there is no inner diameter and no
+                  groove.
+                </p>
+                <p className="soft">
+                  Look at the green line in the photo on the left. That is the outline you are confirming. It
+                  comes from the photo, so moving your clicked points does not change it, and it is only right if
+                  the part lies flat on the table, in the same plane as the card.
+                </p>
+                {inspect?.top_overlay_url && (
+                  <img className="bubble-shot" src={inspect.top_overlay_url} alt="The outline traced in the photo" />
+                )}
+                <div className="bubble-actions">
+                  <button type="button" className="btn go" onClick={answerOutline}>
+                    <Icon name="ok" size={22} />
+                    Yes, use this outline
+                  </button>
+                </div>
+              </Ai>
+            )}
+            {showProfileAsk && !shapePart && (
               <Ai who="GridMend" whoNote="one last check">
                 <p className="q">Is this the ring profile?</p>
                 <p>
@@ -1037,7 +1091,11 @@ export default function App() {
             )}
             {canBuild && !gen && !generating && (
               <Ai>
-                <p>All four values are confirmed. Press Build CAD on the right.</p>
+                <p>
+                  {shapePart
+                    ? "The outline and the thickness are confirmed. Press Build CAD on the right."
+                    : "All four values are confirmed. Press Build CAD on the right."}
+                </p>
               </Ai>
             )}
             {gen && (
@@ -1089,7 +1147,7 @@ export default function App() {
           <div className={`viewer ${gen ? "has-model" : ""}`}>
             <div className="v-top">
               <div>
-                <h2>Rebuilt ring</h2>
+                <h2>{shapePart ? "Rebuilt part" : "Rebuilt ring"}</h2>
                 <p className="sub">{gen ? "From confirmed values" : generating ? "Building…" : "Not built yet"}</p>
               </div>
               {gen && <span className="v-hint">Drag to turn</span>}
@@ -1120,22 +1178,32 @@ export default function App() {
             )}
           </div>
 
-          <div className={`panel sec-panel ${gen ? "compact" : ""}`}>
-            <SectionView
-              wall={wall}
-              thickness={{ value: views.thickness.value, state: secState(views.thickness.state) }}
-              groove={secGroove}
-              grooveKnown={grooveKnown}
-              profileConfirmed={accepted.profile_confirmed}
-            />
-          </div>
+          {!shapePart && (
+            <div className={`panel sec-panel ${gen ? "compact" : ""}`}>
+              <SectionView
+                wall={wall}
+                thickness={{ value: views.thickness.value, state: secState(views.thickness.state) }}
+                groove={secGroove}
+                grooveKnown={grooveKnown}
+                profileConfirmed={accepted.profile_confirmed}
+              />
+            </div>
+          )}
 
           <div className="panel build">
             <button type="button" className={`build-btn ${gen ? "again" : ""}`} disabled={!canBuild || generating} onClick={() => void runGenerate()}>
               {generating ? "Building CAD…" : gen ? "Build CAD again" : "Build CAD"}
             </button>
             {!canBuild && <p className="build-note">Still to confirm: {missing.join(", ")}. I only build from values you checked.</p>}
-            {canBuild && !missingArc && <p className="build-note">No missing arc from the photo fit. Only the full ring will be exported.</p>}
+            {canBuild && shapePart && (
+              <p className="build-note">
+                The outline from the photo will be pushed up by the thickness. There is no missing-segment file:
+                only a ring template knows what a whole part should look like.
+              </p>
+            )}
+            {canBuild && !shapePart && !missingArc && (
+              <p className="build-note">No missing arc from the photo fit. Only the full ring will be exported.</p>
+            )}
             {gen && (
               <>
                 <div className="dl" ref={dlRef}>
@@ -1143,7 +1211,7 @@ export default function App() {
                     STEP
                   </a>
                   <a href={gen.stl_url} download>
-                    Full ring STL
+                    {shapePart ? "Part STL" : "Full ring STL"}
                   </a>
                   {gen.missing_segment_stl_url && (
                     <a className="red" href={gen.missing_segment_stl_url} download>

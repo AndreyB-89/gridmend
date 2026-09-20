@@ -58,6 +58,20 @@ class RingFit(Strict):
     support_deg: float
 
 
+class PartShape(Strict):
+    """The traced outline of any part, in card-plane millimetres (image y, grows down).
+
+    A ring is one shape among many. When the part has no hole, `holes_mm` is [] and
+    there is no RingFit: the part is still measured and can still be built.
+    """
+
+    outline_mm: list[Point]
+    holes_mm: list[list[Point]]
+    length_mm: float
+    width_mm: float
+    confidence: Literal["HIGH", "LOW"]
+
+
 class InspectResult(Strict):
     status: Literal["NEEDS_INPUT", "REVIEW", "UNSUPPORTED"]
     observations: list[str]
@@ -66,6 +80,7 @@ class InspectResult(Strict):
     inner_diameter: Dimension
     thickness: Dimension
     fit: Optional[RingFit]
+    shape: Optional[PartShape]
     top_overlay_url: Optional[str]
     warnings: list[str]
     trace: Trace
@@ -82,6 +97,10 @@ class Groove(Strict):
 
 
 class GenerateRequest(Strict):
+    # Which builder runs is decided by one rule: `shape` present means the general
+    # part builder (extrude the traced outline, cut its holes); `shape` null means
+    # the ring builder, which also owns the groove and the missing arc.
+    shape: Optional[PartShape]
     outer_diameter: Dimension
     inner_diameter: Dimension
     thickness: Dimension

@@ -41,6 +41,16 @@ export interface RingFit {
   missing_arc_deg: [number, number]; // complement of surviving_arc_deg
   support_deg: number; // angular span covered by clicked points
 }
+export interface PartShape {
+  // The traced outline of any part, in card-plane millimetres (image y, grows down).
+  // A ring is one shape among many. No hole means holes_mm is [] and fit is null;
+  // the part is still measured and can still be built.
+  outline_mm: Point[]; // closed polygon, >=3 points
+  holes_mm: Point[][]; // one closed polygon per through hole; [] when there is none
+  length_mm: number; // long side of the bounding box
+  width_mm: number; // short side
+  confidence: "HIGH" | "LOW"; // HIGH does not mean correct: a part not flat on the table reads wrong
+}
 export interface InspectResult {
   status: "NEEDS_INPUT" | "REVIEW" | "UNSUPPORTED";
   observations: string[];
@@ -48,7 +58,8 @@ export interface InspectResult {
   outer_diameter: Dimension;
   inner_diameter: Dimension;
   thickness: Dimension;
-  fit: RingFit | null; // null when calibration or points are insufficient
+  fit: RingFit | null; // null when calibration or points are insufficient, or the part is not a ring
+  shape: PartShape | null; // null when no card or no part was found
   top_overlay_url: string | null; // registered app artifact, not a model-generated URL
   warnings: string[];
   trace: Trace; // Nebius interpretation trace (LOCAL if Nebius not called)
@@ -62,6 +73,9 @@ export interface Groove {
   width_mm: number; // axial, centred on ring mid-height
 }
 export interface GenerateRequest {
+  // One rule decides the builder: shape present = general part (extrude the traced
+  // outline, cut its holes); shape null = ring, which owns groove and missing arc.
+  shape: PartShape | null;
   outer_diameter: Dimension;
   inner_diameter: Dimension;
   thickness: Dimension;

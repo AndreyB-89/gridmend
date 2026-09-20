@@ -64,6 +64,7 @@ synthetic = {
     "inner_diameter": {"value_mm": 30.0, "source": "MANUAL_MEASUREMENT", "confirmed": True},
     "thickness": {"value_mm": 6.0, "source": "MANUAL_MEASUREMENT", "confirmed": True},
     "groove": {"depth_mm": 1.0, "width_mm": 2.0},
+    "shape": None,
     "profile_rz_mm": None,
     "profile_basis": "OBSERVED",
     "profile_confirmed": True,
