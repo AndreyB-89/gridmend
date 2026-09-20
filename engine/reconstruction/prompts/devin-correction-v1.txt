@@ -8,8 +8,18 @@ Correct the candidate using this unchanged report and the original evidence.
 The target is an approximate hackathon demo. Preserve confirmed dimensions and
 document remaining approximation in summary.unresolved_uncertainty. Recorded
 uncertainty does not by itself prevent submitting a candidate for demo validation.
-Regenerate repair_part.stl and update the reproducible script and
-summary.json, including changes_from_previous.
+Fix the failed checks and update summary.json, including changes_from_previous.
+If only report-format checks failed, preserve the meshes that passed geometry and
+visual validation. Regenerate geometry and its reproducible script when a failed
+check requires it.
+For supplied_dimensions_unchanged, use the exact canonical dimension names and
+numeric mm values in that check's tolerance object. No _mm suffixes, source keys
+or nested measurement objects inside supplied_dimensions.
+For video_decode_report, retain actual sandbox decoding evidence and use the
+exact keys sha256, decoder, duration_s, decoded_frame_count and frames.
+frames is a nonempty array of timestamp_s/sha256 objects, not extracted_frames.
+Do not invent decoding evidence to repair a report. Reopen both JSON files and
+check the initial report contract before publishing candidate_ready.
 
 Do not modify the validator, its thresholds, or its reference.
 Return candidate_ready for reevaluation, or needs_input with a precise

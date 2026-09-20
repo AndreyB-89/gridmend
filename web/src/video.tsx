@@ -123,9 +123,11 @@ function conversationText(text: string): string | null {
 }
 
 export function VideoChat({video}: {video: VideoControl}) {
-  return <>{video.job?.messages.map((m,i) => {
+  const job = video.job;
+  const repair = !video.busy && job?.status === 'ACCEPTED' ? job.result.find(a => a.name === 'repair_part_aligned.stl') : null;
+  return <>{job?.messages.map((m,i,messages) => {
     const text = m.role === 'user' ? m.text : conversationText(m.text);
-    return text === null ? null : <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{text}</p></div></div>;
+    return text === null ? null : <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{text}</p>{repair && m.role === 'assistant' && i === messages.length - 1 && <div className="bubble-actions"><a className="link" href={repair.url} download={repair.name}>Download the missing-part STL</a></div>}</div></div>;
   })}
     {!video.job && !video.error && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Loading your {video.mediaKind}…</p></div></div>}
     {video.job?.status === 'INGESTING' && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Preparing your {video.mediaKind} for reconstruction…</p></div></div>}

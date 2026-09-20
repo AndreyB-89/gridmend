@@ -271,6 +271,11 @@ class Reconstruction:
                     self.store.save_private(job, private)
             prompt = Template((PROMPTS/'devin-initial-v1.txt').read_text()).substitute(
                 job_id=job['job_id'], revision=job['revision'], attempt=job['attempt'],
+                summary_identity=json.dumps({
+                    'units': 'mm', 'supplied_dimensions': values(ReferenceSpec.model_validate(job['spec'])),
+                    'reference_sha256': digest(reference_folder/'reference_full.stl'),
+                    'reference_revision': job['revision'], 'attempt': job['attempt'],
+                }),
                 inputs=json.dumps({'user_goal': job['user_goal'], 'confirmed_specification': job['spec'], 'limits': job['limits'],
                                    'source_media': {k: v for k, v in job['video'].items() if k not in ('path', 'frames')} | {'kind': job.get('media_kind', 'video')}}),
                 attachments='\n'.join(f'ATTACHMENT:"{url}"' for url in attachments.values()))

@@ -9,7 +9,13 @@ $attachments
 
 source_media.kind identifies a photo or a video. The original bytes are attached, not just a thumbnail. No reference card is needed: metric dimensions come only from the confirmed specification.
 
-For a video, download and decode the original video in your sandbox. Extract timestamped frames there. In evidence.json record video_decode with the original video's SHA-256, decoder/version, duration_s, decoded_frame_count, sampled timestamps and extracted frame hashes.
+For a video, download and decode the original video in your sandbox. Extract timestamped frames there. In evidence.json, video_decode MUST be an object with these exact keys and types:
+- sha256: string, SHA-256 computed from the original video bytes, matching source_media.sha256.
+- decoder: nonempty string naming the decoder and version actually used.
+- duration_s: number in seconds, measured by your decoder (within 0.2 s of source_media.duration_s).
+- decoded_frame_count: positive integer counting frames actually decoded, not a string or only a container frame-count estimate.
+- frames: nonempty array of objects with timestamp_s (number in seconds) and sha256 (string computed from each extracted frame). Document the hash representation.
+Use the exact key frames, NOT extracted_frames. Parallel timestamp/hash arrays do not replace frames. These values must come from decoding the original video in your sandbox; do not copy the server's frame manifest as your decoding evidence.
 
 For a photo, download and decode the original image, apply its EXIF orientation, and use the single image as frame_index 0. In evidence.json record image_decode with sha256 of the original bytes, decoder/version, and width/height after EXIF orientation. Use the attached frame manifest's resized resolution for camera intrinsics. Do not fabricate video timestamps, motion or additional viewpoints. Attachment access alone is not proof of image understanding.
 
@@ -26,6 +32,14 @@ DELIVER in the reference mm coordinate frame (or supply a rigid 4x4 artifact_to_
 - generation.py, requirements.txt, README.md: reproducible generator with all parameters, dependencies and run instructions. Our server stores these and NEVER executes them.
 - summary.json, preserving: status (candidate_ready|needs_input), units, supplied_dimensions, observed_geometry, assumptions, coordinate_frame, candidate_dimensions_mm, missing_inputs, changes_from_previous, artifacts. Unavailable artifact entries must be null. Add reference_sha256, reference_revision, attempt, limitations, unresolved_uncertainty.
 - evidence.json: video_decode or image_decode as above and views array. Each view has frame_index (matching our attached frame manifest), K (3x3 camera intrinsics at frame resolution), R (3x3 proper rotation), t_mm (3-vector) mapping reference coordinates to camera coordinates. Provide at least two well-separated clear views for video, or frame_index 0 for a photo. Calibrate the camera against the fixed reference without rescaling it. Document uncertainty and occlusion. Include limitations and the original media hash. Render/reopen your export before returning it.
+
+EXACT SUMMARY METADATA
+Merge these fields into summary.json alongside the other required fields above:
+```json
+$summary_identity
+```
+supplied_dimensions must equal that flat object exactly: canonical dimension names mapped to numeric millimetre values. Do not rename keys with an _mm suffix, add source/provenance keys inside supplied_dimensions, wrap numbers in measurement objects, or include unknown/null dimensions. Keep provenance in assumptions. On correction, update attempt to the server's requested attempt; preserve dimensions, units, revision and reference hash.
+Before publishing candidate_ready, reopen your written JSON files and check this contract in your sandbox. Check both supplied_dimensions and, for video, video_decode.frames explicitly. This report-format check does not replace our independent geometric and visual validation.
 
 Our validator independently decodes sampled original frames. It compares projected survivor and missing-piece silhouettes with conservative foreground segmentation. Busy backgrounds, hands, hidden boundaries and insufficient views may require clearer video. Camera estimates and survivor meshes you provide are not independent truth. Our check separately reports mesh validity, reference consistency and visual confidence; no physical-fit claim.
 
