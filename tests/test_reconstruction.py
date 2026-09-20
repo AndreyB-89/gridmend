@@ -154,6 +154,115 @@ def test_measurement_grounding_units_and_confirmation():
     assert not issues and spec.dimensions['outer_diameter'].value_mm==42
 
 
+@pytest.mark.parametrize('section', [
+    'rectangular cross section 0.9cmx0.6cm',
+    'rectangular section 9 x 6 mm',
+    'rectangular section 6mm × 0.9cm',
+    'rectangular section 0,6 x 0,9 cm',
+])
+def test_ring_radii_and_section_keep_metric_provenance(section):
+    text = 'Build the missing part of this ring of outer radius 4cm inner radius 3.4cm and '+section
+    spec, issues = supplied_edit(empty_spec(), text, 'measured-request')
+    assert not issues and not questions(spec)
+    assert values(spec) == {'outer_diameter': 80, 'inner_diameter': 68, 'height': 9}
+    assert spec.profile == 'plain' and spec.cavity == 'through'
+    outer = spec.dimensions['outer_diameter']
+    assert outer.original_value == 4 and outer.original_unit == 'cm'
+    assert outer.source_text.strip() == 'outer radius 4cm'
+    assert outer.message_id == 'measured-request'
+    assert spec.dimensions['height'].source_text == text
+    assert not spec.confirmed and not any(d.confirmed for d in spec.dimensions.values())
+
+
+def test_radius_and_diameter_must_agree():
+    spec, issues = supplied_edit(empty_spec(),
+        'plain ring outer radius 4 cm outer diameter 70 mm inner radius 3.4 cm height 9 mm', 'conflict')
+    assert issues and spec.dimensions['outer_diameter'].value_mm is None
+    spec, issues = supplied_edit(spec, 'correct outer radius to 4 cm', 'correction')
+    assert not issues and not questions(spec)
+    assert spec.dimensions['outer_diameter'].value_mm == 80
+
+
+def test_square_section_and_rejected_rectangular_clarification():
+    spec, issues = supplied_edit(empty_spec(),
+        'ring outer radius 4cm inner radius 3.4cm square section 6x6mm', 'square-section')
+    assert not issues and not questions(spec)
+    assert spec.dimensions['height'].value_mm == 6
+    spec, issues = supplied_edit(spec, 'not rectangular', 'rejected-profile')
+    assert issues and spec.profile is None and questions(spec)
+    spec, issues = supplied_edit(spec, 'rectangular, not square', 'corrected-profile')
+    assert not issues and not questions(spec)
+
+
+def test_pending_section_resolves_when_radii_arrive():
+    spec, issues = supplied_edit(empty_spec(), 'ring rectangular section 9 x 6 mm', 'section-first')
+    assert issues and spec.dimensions['height'].value_mm is None
+    spec, issues = supplied_edit(spec, 'outer radius 4 cm inner radius 3.4 cm', 'radii-later')
+    assert not issues and not questions(spec)
+    assert spec.dimensions['height'].value_mm == 9
+    assert spec.dimensions['height'].message_id == 'section-first'
+
+
+@pytest.mark.parametrize('section', ['9 x 8 mm', '9 x 6', '0 x 6 mm'])
+def test_section_cannot_silently_supply_inconsistent_or_unmeasured_height(section):
+    spec, issues = supplied_edit(empty_spec(),
+        'ring outer radius 4cm inner radius 3.4cm rectangular section '+section, 'bad-section')
+    assert issues and spec.dimensions['height'].value_mm is None
+    spec, issues = supplied_edit(spec, 'Thanks', 'unrelated-reply')
+    assert issues or questions(spec)
+    assert spec.dimensions['height'].value_mm is None
+
+
+def test_cross_section_and_explicit_height_must_agree():
+    spec, issues = supplied_edit(empty_spec(),
+        'ring outer radius 4cm inner radius 3.4cm rectangular section 9x6mm height 10mm', 'height-conflict')
+    assert issues and spec.dimensions['height'].value_mm is None
+
+
+def test_radius_edit_rechecks_existing_cross_section():
+    spec, issues = supplied_edit(empty_spec(),
+        'ring outer radius 4cm inner radius 3.4cm rectangular section 9x6mm', 'initial-section')
+    assert not issues and not questions(spec)
+    spec, issues = supplied_edit(spec, 'correct outer radius to 4.1 cm', 'radius-edit')
+    assert questions(spec)
+    spec, issues = supplied_edit(spec, 'Thanks', 'unrelated-reply')
+    assert questions(spec)
+    spec, issues = supplied_edit(spec, 'correct rectangular section to 9x7mm', 'section-edit')
+    assert not issues and not questions(spec)
+
+
+def test_video_instruction_clarification_confirmation_and_reference(tmp_path, media):
+    service = Reconstruction(Store(tmp_path/'runs'))
+    job = service.new()
+    job.update(status='INGESTING', upload_path=media[0]['path'])
+    service.store.save(job)
+    service.tick(job['job_id'])
+    uploaded = service.store.load(job['job_id'])
+    assert uploaded['status'] == 'AWAITING_INPUT'
+    assert uploaded['messages'][-1]['text'] == 'Vidéo bien reçue, que dois-je faire ?'
+    assert all(d['value_mm'] is None for d in uploaded['spec']['dimensions'].values())
+
+    instruction = 'build the missing part of this ring of outer radius 4cm inner radius 3.4cm and square cross section 0.9cmx0.6cm'
+    draft = service.turn(job['job_id'], uploaded['revision'], instruction, 'instruction-1')
+    assert values(draft.spec) == {'outer_diameter': 80, 'inner_diameter': 68, 'height': 9}
+    assert draft.status == 'AWAITING_INPUT' and draft.spec.profile is None
+    assert any('rectangular, not square' in q for q in draft.questions)
+    assert not draft.reference and not draft.result and draft.session_id is None
+    with pytest.raises(ValueError):
+        service.confirm(job['job_id'], draft.revision)
+    clarified = service.turn(job['job_id'], draft.revision, 'rectangular section', 'clarification-1')
+    assert clarified.status == 'AWAITING_CONFIRMATION' and not clarified.questions
+    assert not clarified.spec.confirmed and not clarified.reference
+    service.confirm(job['job_id'], clarified.revision)
+    ready = run_until(service, job['job_id'])
+    assert ready['status'] == 'MOCK_REFERENCE_READY'
+    assert {a['name'] for a in ready['reference']} == {'reference_full.stl', 'reference_full.step', 'specification.json'}
+    assert ready['session_id'] is None and not ready['result']
+    assert not any('Sending the original video' in m['text'] for m in ready['messages'])
+    mesh = trimesh.load_mesh(service.store.revision_dir(ready)/'reference/reference_full.stl')
+    assert np.allclose(mesh.extents, [80, 80, 9], atol=.1)
+
+
 @pytest.mark.parametrize('family,cavity', [('ring','through'),('cylinder','solid'),('cylinder','through'),('cylinder','blind'),('box','solid'),('box','through'),('box','blind')])
 def test_complete_reference_templates(tmp_path,family,cavity):
     spec=spec_for(family,cavity)

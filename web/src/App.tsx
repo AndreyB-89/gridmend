@@ -1058,10 +1058,11 @@ export default function App() {
           </div>
 
           <p className="talk-hint">
-            Say or type one size, for example “thickness is 6 mm”. You can also type a number in the Dimensions table. Nothing is used until you press
-            Confirm.
+            {video.active
+              ? 'Describe what to build and include your measurements in one message. You can give ring radii and a rectangular cross section. Review the readback and press Confirm and build; the result appears on the right.'
+              : <>Say or type one size, for example “thickness is 6 mm”. You can also type a number in the Dimensions table. Nothing is used until you press Confirm.</>}
           </p>
-          {typeOpen && (
+          {(typeOpen || video.active) && (
             <form
               className="typebox"
               onSubmit={(e) => {
@@ -1070,23 +1071,23 @@ export default function App() {
               }}
             >
               <label className="sr" htmlFor="typeIn">
-                Type one value
+                {video.active ? "Describe the reconstruction and measurements" : "Type one value"}
               </label>
               <input
                 id="typeIn"
                 ref={typeRef}
                 value={typed}
                 maxLength={2000}
-                placeholder={video.active ? "Create the missing part of this ring" : "For example: thickness is 6 mm"}
+                placeholder={video.active ? "Build the missing part; include radii and cross section" : "For example: thickness is 6 mm"}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => e.key === "Escape" && setTypeOpen(false)}
               />
               <button type="submit" className="btn" disabled={!typed.trim() || editing || video.busy || (video.active && (!video.job || video.job.status === "INGESTING"))}>
                 Send
               </button>
-              <button type="button" className="btn ghost" onClick={() => setTypeOpen(false)}>
+              {!video.active && <button type="button" className="btn ghost" onClick={() => setTypeOpen(false)}>
                 Close
-              </button>
+              </button>}
             </form>
           )}
           <TalkBar busy={editing || video.busy} onError={showError} onTranscript={onTranscript} onTypeInstead={openType} />

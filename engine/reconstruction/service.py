@@ -143,7 +143,9 @@ class Reconstruction:
             job['spec'] = spec.model_dump()
             job['started_at'] = time.time()
             self.store.event(job, 'confirmed', specification=job['spec'])
-            self.store.say(job, 'Confirmed. Building and checking the complete intact reference first. Reconstruction will then start automatically.')
+            self.store.say(job, 'Confirmed. Building and checking the complete intact reference first. ' + (
+                'MOCK stops after the reference; no Devin session will be started.'
+                if job['mode'] == 'MOCK' and not self.offline_double else 'Reconstruction will then start automatically.'))
             self.store.transition(job, 'QUEUED')
             return self.public(job)
 
@@ -230,7 +232,7 @@ class Reconstruction:
             job['video'] = inspect_video(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
             self.store.event(job, 'video_decoded', video=job['video'])
             job['observations'] = observe(self.store, job)
-            self.store.say(job, 'Video received. Describe the missing part in chat. I will ask for the intact object\'s measured dimensions; I will not infer them from the video.')
+            self.store.say(job, 'Vidéo bien reçue, que dois-je faire ?')
             self.store.transition(job, 'AWAITING_INPUT')
             return
         if status == 'QUEUED':
@@ -238,10 +240,10 @@ class Reconstruction:
             sidecar = build_reference(ReferenceSpec.model_validate(job['spec']), reference_folder, job['revision'], job['video']['sha256'])
             job['reference'] = [self.artifact(job, reference_folder/n) for n in ('reference_full.stl', 'reference_full.step', 'specification.json')]
             self.store.event(job, 'reference_built', specification=sidecar, artifacts=job['reference'])
-            self.store.say(job, 'The complete reference passed its checks. It retains the specified hole/cavity. Sending the original video, reference STL and specification to Devin.')
             if job['mode'] == 'MOCK' and not self.offline_double:
                 self.terminal(job, 'MOCK_REFERENCE_READY', 'MOCK: complete reference checked. No Devin reconstruction or paid session was run.')
                 return
+            self.store.say(job, 'The complete reference passed its checks. It retains the specified hole/cavity. Sending the original video, reference STL and specification to Devin.')
             job['attempt'] = 1
             self.store.transition(job, 'UPLOADING')
             return
