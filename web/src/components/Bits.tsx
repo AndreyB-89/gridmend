@@ -1,4 +1,4 @@
-import type { Dimension, Mode, Trace } from "../types.ts";
+import type { Dimension, Trace } from "../types.ts";
 
 export function Icon({ name, size = 16 }: { name: "cam" | "mic" | "hand" | "ok" | "warn" | "up"; size?: number }) {
   const p = { width: size, height: size, viewBox: "0 0 24 24", "aria-hidden": true as const };
@@ -101,18 +101,6 @@ export function StateMark({ state }: { state: "ok" | "draft" | "open" | "unknown
       </span>
     );
   return <span className="state unknown">Unknown</span>;
-}
-
-/** Provider mode. MOCK and REPLAY are orange so nobody mistakes them for live calls. */
-export function ModePill({ label, mode }: { label: string; mode: Mode | "OFFLINE" | null }) {
-  const m = mode ?? "OFFLINE";
-  const text = m === "LIVE" ? "live" : m === "MOCK" ? "MOCK" : m === "REPLAY" ? "REPLAY" : "offline";
-  return (
-    <span className={`live mode-${m.toLowerCase()}`} title={`${label} is in ${m} mode`}>
-      <i />
-      {label} <span>{text}</span>
-    </span>
-  );
 }
 
 export function TraceTag({ trace }: { trace: Trace }) {

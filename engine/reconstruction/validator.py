@@ -108,17 +108,20 @@ def visual_checks(reference, repair, survivor, evidence, video, folder):
                 stamps.append(frame['timestamp_s'])
         except (ValueError, KeyError, IndexError) as exc:
             results.append({'frame_index': idx, 'passed': False, 'reason': str(exc)})
-    return len(stamps) >= TOLERANCES['min_clear_views'], results
+    required_views = 1 if video.get('kind') == 'photo' else TOLERANCES['min_clear_views']
+    return len(stamps) >= required_views, results
 
 
 def validate(folder: Path, reference_folder: Path, job):
     checks = []
+    is_photo = job['video'].get('kind') == 'photo'
+    thresholds = {**TOLERANCES, 'min_clear_views': 1} if is_photo else TOLERANCES
     def check(name, category, passed, measured, units, tolerance, detail=''):
         checks.append({'name': name, 'category': category, 'passed': bool(passed), 'measured': measured,
                        'units': units, 'tolerance': tolerance, 'detail': detail})
-    report = {'validator_version': 2, 'validation_profile': 'approximate_demo',
+    report = {'validator_version': 2, 'validation_profile': 'approximate_single_photo_demo' if is_photo else 'approximate_demo',
               'job_id': job['job_id'], 'reference_revision': job['revision'],
-              'attempt': job['attempt'], 'units': 'mm', 'thresholds': TOLERANCES, 'checks': checks,
+              'attempt': job['attempt'], 'units': 'mm', 'thresholds': thresholds, 'checks': checks,
               'alignment': None, 'accepted': False, 'mesh_validity': False, 'reference_consistency': False,
               'visual_reconstruction_confidence': 'UNRESOLVED', 'physical_fit_verified': False}
     try:
@@ -141,9 +144,15 @@ def validate(folder: Path, reference_folder: Path, job):
         uncertainty = summary.get('unresolved_uncertainty')
         report['unresolved_uncertainty'] = uncertainty
         check('damage_documented', 'visual', isinstance(uncertainty, list) and all(isinstance(item, str) for item in uncertainty) and summary.get('missing_inputs') == [], uncertainty, None, 'Documented approximation; no outstanding input request.', 'Approximate demo: uncertainty is retained, not treated as resolved.')
-        decode = evidence.get('video_decode', {})
-        check('video_decode_report', 'visual', decode.get('sha256') == job['video']['sha256'] and isinstance(decode.get('decoded_frame_count'), int) and decode['decoded_frame_count'] > 0 and bool(decode.get('decoder')) and bool(decode.get('frames')) and abs(float(decode.get('duration_s', -1))-job['video']['duration_s']) < .2,
-              decode, None, {'sha256': job['video']['sha256'], 'duration_tolerance_s': .2}, 'Reported sandbox decoding is checked against original media; live API activity must corroborate it.')
+        if is_photo:
+            decode = evidence.get('image_decode', {})
+            expected = {k: job['video'][k] for k in ('sha256', 'width', 'height')}
+            check('photo_decode_report', 'visual', all(decode.get(k) == v for k, v in expected.items()) and bool(decode.get('decoder')),
+                  decode, None, expected, 'Original image hash and EXIF-oriented dimensions; no video evidence is inferred.')
+        else:
+            decode = evidence.get('video_decode', {})
+            check('video_decode_report', 'visual', decode.get('sha256') == job['video']['sha256'] and isinstance(decode.get('decoded_frame_count'), int) and decode['decoded_frame_count'] > 0 and bool(decode.get('decoder')) and bool(decode.get('frames')) and abs(float(decode.get('duration_s', -1))-job['video']['duration_s']) < .2,
+                  decode, None, {'sha256': job['video']['sha256'], 'duration_tolerance_s': .2}, 'Reported sandbox decoding is checked against original media; live API activity must corroborate it.')
         transform = summary.get('coordinate_frame', {}).get('artifact_to_reference', np.eye(4).tolist())
         valid_transform = rigid(transform)
         check('rigid_alignment', 'reference', valid_transform, transform, 'mm', 'rotation + translation, unit scale')
@@ -178,17 +187,19 @@ def validate(folder: Path, reference_folder: Path, job):
         check('missing_region_coverage', 'reference', uncovered <= TOLERANCES['max_uncovered_fraction'], uncovered, 'fraction of reference', TOLERANCES['max_uncovered_fraction'], 'Deterministic volume occupancy samples; conditional on survivor estimate.')
         visual_ok, views = visual_checks(reference, repair, survivor, evidence, job['video'], folder)
         report['visual_evidence'] = views
-        check('original_video_silhouettes', 'visual', visual_ok, views, 'IoU', {
+        check('original_photo_silhouette' if is_photo else 'original_video_silhouettes', 'visual', visual_ok, views, 'IoU', {
             'survivor': TOLERANCES['min_silhouette_iou'],
             'missing': TOLERANCES['min_missing_silhouette_iou'],
-            'views': TOLERANCES['min_clear_views'],
+            'views': thresholds['min_clear_views'],
         })
         report['mesh_validity'] = all(c['passed'] for c in checks if c['category'] == 'mesh')
         report['reference_consistency'] = all(c['passed'] for c in checks if c['category'] == 'reference')
         visual_pass = all(c['passed'] for c in checks if c['category'] == 'visual')
-        report['visual_reconstruction_confidence'] = 'SUPPORTED_BY_SAMPLED_VIEWS' if visual_pass else 'UNRESOLVED'
+        report['visual_reconstruction_confidence'] = ('SUPPORTED_BY_SINGLE_PHOTO' if is_photo else 'SUPPORTED_BY_SAMPLED_VIEWS') if visual_pass else 'UNRESOLVED'
         report['accepted'] = all(c['passed'] for c in checks)
         report['limitations'] = ['Approximate hackathon demo; the 70% silhouette thresholds are not calibrated accuracy guarantees.', 'No physical fit verified.', 'Silhouette checks cannot certify hidden surfaces.', 'Provider camera and survivor hypotheses are constrained by sampled original pixels, not independent 3D ground truth.']
+        if is_photo:
+            report['limitations'].append('Single-photo evidence only; depth and hidden fracture surfaces are not verified by additional views.')
         if report['accepted']:
             repair.export(folder/'repair_part_aligned.stl')
     except Exception as exc:

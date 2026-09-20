@@ -19,7 +19,7 @@ def build_open_frustum(bottom_diameter, top_diameter, height, wall_thickness, bo
     return cq.Workplane('XZ').polyline(profile).close().revolve(360, (0, 0), (0, 1))
 
 
-def build_reference(spec: ReferenceSpec, folder: Path, revision: int, video_hash: str):
+def build_reference(spec: ReferenceSpec, folder: Path, revision: int, video_hash: str, media_kind: str = 'video'):
     q = questions(spec)
     if q or not spec.confirmed or any(not spec.dimensions[k].confirmed for k in required(spec)):
         raise ValueError('Confirm the complete specification before building. ' + ' '.join(q))
@@ -81,8 +81,8 @@ def build_reference(spec: ReferenceSpec, folder: Path, revision: int, video_hash
         raise ValueError('Reference validation failed: '+str(checks))
     sidecar = {'schema_version': 1, 'reference_revision': revision, 'units': 'mm', 'specification': spec.model_dump(),
         'coordinate_frame': FRAME, 'semantics': 'Complete intended intact object. Explicit cavities retained.',
-        'provenance': 'Only independently supplied user measurements; no video-derived reference dimensions.',
-        'video_sha256': video_hash, 'reference_sha256': digest(folder/'reference_full.stl'),
+        'provenance': 'Only independently supplied user measurements; no image-derived reference dimensions.',
+        f'{media_kind}_sha256': video_hash, 'reference_sha256': digest(folder/'reference_full.stl'),
         'checks': checks, 'volume_mm3': float(mesh.volume), 'bounds_mm': mesh.bounds.tolist(),
         'tolerances': {'bounds_mm': .1, 'relative_mesh_volume': .005}, 'physical_fit_verified': False}
     if spec.family == 'open_frustum':

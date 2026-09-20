@@ -12,8 +12,8 @@ from cad.reference import build_reference
 from engine.providers.common import ProviderError
 from engine.providers.devin import ARTIFACT_NAMES, Devin
 from engine.providers.video_nebius import construct_reference, dialogue, model
-from engine.reconstruction.media import inspect_video
-from engine.reconstruction.specification import empty_spec, questions, required, values
+from engine.reconstruction.media import inspect_photo, inspect_video
+from engine.reconstruction.specification import confirms_build, empty_spec, questions, required, values
 from engine.reconstruction.store import Store, atomic_json, digest, redact
 from engine.reconstruction.validator import validate
 
@@ -90,7 +90,7 @@ class Reconstruction:
             if revision != job['revision']:
                 raise ValueError('This reply belongs to an older reference. Reload the current conversation.')
             if job['status'] in ('UPLOADING_VIDEO', 'INGESTING'):
-                raise ValueError('Wait for video decoding to finish before sending a message.')
+                raise ValueError('Wait for the upload to finish decoding before sending a message.')
             old_spec = job['spec']
             old_questions = job['questions']
             remote_wait = job['status'] == 'WAITING_INPUT' and job['session_id'] is not None
@@ -123,7 +123,10 @@ class Reconstruction:
             job['requests'].append(request_id)
             self.store.say(job, response)
             self.store.event(job, 'supplied_measurements', specification=job['spec'], unresolved=job['questions'])
-            self.store.transition(job, status)
+            if status == 'AWAITING_CONFIRMATION' and confirms_build(text, ReferenceSpec.model_validate(job['spec']), request_id):
+                self.queue_reference(job, request_id)
+            else:
+                self.store.transition(job, status)
             return self.public(job)
 
     def confirm(self, job_id, revision):
@@ -135,22 +138,25 @@ class Reconstruction:
                 return self.public(job)  # repeated clicks never start new jobs/sessions
             if job['questions'] or job['status'] != 'AWAITING_CONFIRMATION':
                 raise ValueError('Resolve the questions and supply all required measurements first.')
-            spec = ReferenceSpec.model_validate(job['spec'])
-            if questions(spec):
-                raise ValueError(' '.join(questions(spec)))
-            for k in required(spec):
-                if not spec.dimensions[k].source_text or (spec.dimensions[k].source == 'operator' and not spec.dimensions[k].message_id):
-                    raise ValueError('Every dimension needs operator measurement or explicit design-default provenance.')
-                spec.dimensions[k].confirmed = True
-            spec.confirmed = True
-            job['spec'] = spec.model_dump()
-            job['started_at'] = time.time()
-            self.store.event(job, 'confirmed', specification=job['spec'])
-            self.store.say(job, 'Confirmed. Building and checking the complete intact reference first. ' + (
-                'MOCK stops after the reference; no Devin session will be started.'
-                if job['mode'] == 'MOCK' and not self.offline_double else 'Reconstruction will then start automatically.'))
-            self.store.transition(job, 'QUEUED')
+            self.queue_reference(job)
             return self.public(job)
+
+    def queue_reference(self, job, message_id=None):
+        spec = ReferenceSpec.model_validate(job['spec'])
+        if job['questions'] or questions(spec):
+            raise ValueError(' '.join(job['questions'] or questions(spec)))
+        for k in required(spec):
+            if not spec.dimensions[k].source_text or (spec.dimensions[k].source == 'operator' and not spec.dimensions[k].message_id):
+                raise ValueError('Every dimension needs operator measurement or explicit design-default provenance.')
+            spec.dimensions[k].confirmed = True
+        spec.confirmed = True
+        job['spec'] = spec.model_dump()
+        job['started_at'] = time.time()
+        self.store.event(job, 'confirmed', specification=job['spec'], message_id=message_id)
+        self.store.say(job, 'Confirmed. Building and checking the complete intact reference first. ' + (
+            'MOCK stops after the reference; no Devin session will be started.'
+            if job['mode'] == 'MOCK' and not self.offline_double else 'Reconstruction will then start automatically.'))
+        self.store.transition(job, 'QUEUED')
 
     def invalidate(self, job_id):
         with self.store.lock(job_id):
@@ -232,9 +238,11 @@ class Reconstruction:
         status = job['status']
         folder = self.store.revision_dir(job)
         if status == 'INGESTING':
-            job['video'] = inspect_video(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
-            self.store.event(job, 'video_decoded', video=job['video'])
-            self.store.say(job, 'Video received. What would you like me to do?')
+            kind = job.get('media_kind', 'video')
+            inspect = inspect_photo if kind == 'photo' else inspect_video
+            job['video'] = inspect(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
+            self.store.event(job, f'{kind}_decoded', video=job['video'])
+            self.store.say(job, f'{kind.capitalize()} received. What would you like me to do?')
             self.store.transition(job, 'AWAITING_INPUT')
             return
         if status == 'QUEUED':
@@ -245,7 +253,8 @@ class Reconstruction:
             if job['mode'] == 'MOCK' and not self.offline_double:
                 self.terminal(job, 'MOCK_REFERENCE_READY', 'MOCK: complete reference checked. No Devin reconstruction or paid session was run.')
                 return
-            self.store.say(job, 'The complete reference passed its checks. It retains the specified hole/cavity. Sending the original video, reference STL and specification to Devin.')
+            kind = job.get('media_kind', 'video')
+            self.store.say(job, f'The complete reference passed its checks. It retains the specified hole/cavity. Sending the original {kind}, reference STL and specification to Devin.')
             job['attempt'] = 1
             self.store.transition(job, 'UPLOADING')
             return
@@ -262,7 +271,13 @@ class Reconstruction:
                     self.store.save_private(job, private)
             prompt = Template((PROMPTS/'devin-initial-v1.txt').read_text()).substitute(
                 job_id=job['job_id'], revision=job['revision'], attempt=job['attempt'],
-                inputs=json.dumps({'user_goal': job['user_goal'], 'confirmed_specification': job['spec'], 'limits': job['limits']}),
+                summary_identity=json.dumps({
+                    'units': 'mm', 'supplied_dimensions': values(ReferenceSpec.model_validate(job['spec'])),
+                    'reference_sha256': digest(reference_folder/'reference_full.stl'),
+                    'reference_revision': job['revision'], 'attempt': job['attempt'],
+                }),
+                inputs=json.dumps({'user_goal': job['user_goal'], 'confirmed_specification': job['spec'], 'limits': job['limits'],
+                                   'source_media': {k: v for k, v in job['video'].items() if k not in ('path', 'frames')} | {'kind': job.get('media_kind', 'video')}}),
                 attachments='\n'.join(f'ATTACHMENT:"{url}"' for url in attachments.values()))
             private['initial_prompt'] = prompt
             self.store.save_private(job, private)
@@ -381,7 +396,8 @@ class Reconstruction:
             job['validation'] = report
             if report['accepted']:
                 job['result'] = [self.artifact(job, attempt_folder/name) for name in ['repair_part_aligned.stl', 'summary.json', 'generation.py', 'requirements.txt', 'README.md', 'evidence.json', 'surviving_estimate.stl', 'validator.json']]
-                self.terminal(job, 'ACCEPTED', 'Proposed missing part ready. It passed mesh, reference and 70% sampled-video silhouette checks. Remaining uncertainty is recorded in the validation report. Physical fit has not been verified.')
+                visual = 'single-photo' if job.get('media_kind') == 'photo' else 'sampled-video'
+                self.terminal(job, 'ACCEPTED', f'Proposed missing part ready. It passed mesh, reference and 70% {visual} silhouette checks. Remaining uncertainty is recorded in the validation report. Physical fit has not been verified.')
             else:
                 self.reject(job, report)
 

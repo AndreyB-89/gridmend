@@ -12,16 +12,16 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ConfigDict, SecretStr
 from api.schemas import ReferenceSpec, SuppliedMeasurement
 from engine.providers.common import NEBIUS_BASE_URL, TIMEOUT_S, ProviderError, map_openai_error, nebius_key, nebius_text_model
-from engine.reconstruction.specification import CUP_THICKNESS_MM, NUMBER, SECTION, UNIT, questions, readback, section_measurements, unit_scale
+from engine.reconstruction.specification import CUP_THICKNESS_MM, NUMBER, SECTION, UNIT, confirms_build, questions, readback, section_measurements, unit_scale
 
 AGENT_PROMPT = Path(__file__).parents[1] / 'reconstruction/prompts/nebius-reference-v1.txt'
 ALIASES = {
-    'bottom_diameter': r'(?<!inner )(?<!inside )\b(?:bottom|base|basis|lower)\s+(?:outer\s+|outside\s+)?diameter',
-    'top_diameter': r'(?<!inner )(?<!inside )\b(?:top|upper|rim)\s+(?:outer\s+|outside\s+)?diameter',
+    'bottom_diameter': r'(?<!inner )(?<!inside )\b(?:bottom|base|basis|lower)\s+(?:outer\s+|outside\s+)?diame?ter',
+    'top_diameter': r'(?<!inner )(?<!inside )\b(?:top|upper|rim)\s+(?:outer\s+|outside\s+)?diame?ter',
     'bottom_thickness': r'\b(?:bottom|base)\s+thickness',
-    'outer_diameter': r'outer\s+diameter|outside\s+diameter|\bOD\b',
-    'inner_diameter': r'inner\s+diameter|inside\s+diameter|\bID\b',
-    'diameter': r'(?<!outer )(?<!inner )(?<!outside )(?<!inside )\bdiameter',
+    'outer_diameter': r'outer\s+diame?ter|outside\s+diame?ter|\bOD\b',
+    'inner_diameter': r'inner\s+diame?ter|inside\s+diame?ter|\bID\b',
+    'diameter': r'(?<!outer )(?<!inner )(?<!outside )(?<!inside )\bdiame?ter',
     'height': r'axial\s+height|height|(?<!wall )thickness',
     'length': r'length', 'width': r'(?<!groove )(?<!axial )width',
     'wall_thickness': r'wall\s+thickness', 'cavity_depth': r'cavity\s+depth|hole\s+depth',
@@ -146,10 +146,10 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
         spec.cavity = 'blind'
     elif re.search(r'hollow|cavity', lower) and spec.cavity is None:
         issues.append('Does the cavity pass all the way through, or is its bottom closed?')
-    profile_text = re.sub(r'\b(?:not|no)\s+(?:plain|rectangular|square|inner groove)\b', '', lower)
+    profile_text = re.sub(r'\b(?:not|no)\s+(?:plain|rectangular|rectangle|square|inner groove)\b', '', lower)
     if re.search(r'inner groove', profile_text):
         spec.profile = 'inner_groove'
-    elif re.search(r'\bplain\b|no grooves?|no extra features|\brectangular\b|\bsquare\s+(?:cross[\s-]+)?section', profile_text):
+    elif re.search(r'\bplain\b|no grooves?|no extra features|\brectang(?:ular|le)\b|\bsquare\s+(?:cross[\s-]+)?section', profile_text):
         spec.profile = 'plain'
     elif profile_text != lower:
         spec.profile = None
@@ -206,7 +206,7 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
                 raise ValueError('Supply one cross section at a time, with its two sides and units.')
             sides = section_measurements(section_text, section_id)
             square = re.search(r'\bsquare\s+(?:cross[\s-]+)?section', section_text, re.I)
-            if square and not math.isclose(sides[0].value_mm, sides[1].value_mm, abs_tol=1e-8) and not re.search(r'\brectangular\b', text, re.I):
+            if square and not math.isclose(sides[0].value_mm, sides[1].value_mm, abs_tol=1e-8) and not re.search(r'\brectang(?:ular|le)\b', text, re.I):
                 spec.profile = None
                 issues.append(f'A {sides[0].value_mm:g} x {sides[1].value_mm:g} mm section is rectangular, not square. Say "rectangular section" if that is intended, or correct the two sides.')
             outer, inner = spec.dimensions.get('outer_diameter'), spec.dimensions.get('inner_diameter')
@@ -239,7 +239,11 @@ def dialogue(store, job, text, message_id):
         spec, issues = supplied_edit(ReferenceSpec.model_validate(job['spec']), text, message_id)
         job['spec'] = spec.model_dump()
         job['questions'] = list(dict.fromkeys(issues + questions(spec)))
-        return readback(spec) + (' '.join(job['questions']) if job['questions'] else 'Confirm these values and the shape to build the complete reference and start reconstruction.')
+        if job['questions']:
+            return readback(spec) + ' '.join(job['questions'])
+        if confirms_build(text, spec, message_id):
+            return readback(spec) + 'Your build request confirms these measurements and the shape.'
+        return readback(spec) + 'Confirm these values and the shape to build the complete reference and start reconstruction.'
 
     if job['mode'] == 'LIVE':
         canonical = run_reference_tool(store, job, prepare_complete_reference)
@@ -253,6 +257,8 @@ def construct_reference(store, job, builder):
         spec = ReferenceSpec.model_validate(job['spec'])
         if job['status'] != 'QUEUED' or job['questions'] or not spec.confirmed:
             raise ValueError('Confirm the complete specification before building.')
+        if job.get('media_kind') == 'photo':
+            return builder(spec, store.revision_dir(job)/'reference', job['revision'], job['video']['sha256'], media_kind='photo')
         return builder(spec, store.revision_dir(job)/'reference', job['revision'], job['video']['sha256'])
 
     if job['mode'] == 'LIVE':
