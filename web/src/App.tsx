@@ -519,7 +519,6 @@ export default function App() {
           <div className="panel photo">
             {video.active ? <VideoPreview video={video} onUpload={onUpload}/> : !photoUrl ? (
               <div className="photo-empty">
-                <p className="big">Take a top-down photo of the broken part with a bank card next to it.</p>
                 <label className="btn primary file-btn">
                   <Icon name="up" size={22} />
                   Upload photo or video
@@ -703,12 +702,6 @@ export default function App() {
                 Hello. I rebuild broken parts from one photo. I never guess a size: you confirm every value before I build.
               </p>
             </Ai>
-            {!photoUrl && (
-              <Ai>
-                <p className="q">Please take a top-down photo of the broken part, with a bank card next to it for scale.</p>
-              </Ai>
-            )}
-
             {log.map((item) => {
               switch (item.kind) {
                 case "ai":
@@ -901,7 +894,6 @@ export default function App() {
           <div className={`viewer ${gen ? "has-model" : ""}`}>
             <div className="v-top">
               <div>
-                <h2>Rebuilt ring</h2>
                 <p className="sub">{gen ? "From confirmed values" : generating ? "Building…" : "Not built yet"}</p>
               </div>
               {gen && <span className="v-hint">Drag to turn</span>}
