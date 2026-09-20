@@ -267,24 +267,6 @@ export default function App() {
     newPhoto(file, file.name || "photo.jpg", null);
   };
 
-  const useDemoPhoto = async () => {
-    setError(null);
-    try {
-      const d = await api.demoClicks();
-      const url = d.image_url ?? "/api/demo-photo";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Could not load the demo photo (HTTP ${res.status}).`);
-      const blob = await res.blob();
-      if (d.card_size_mm) {
-        setCardW(d.card_size_mm[0].toFixed(2));
-        setCardH(d.card_size_mm[1].toFixed(2));
-      }
-      newPhoto(blob, "demo-photo.jpg", d);
-    } catch (e) {
-      fail("Demo photo", e, () => void useDemoPhoto());
-    }
-  };
-
   const useSavedDemoPoints = () => {
     if (!demo) return;
     pointsChanged({ corners: demo.corners_px, outer: demo.outer_edge_points_px, inner: demo.inner_edge_points_px });
@@ -524,9 +506,6 @@ export default function App() {
                   Upload photo or video
                   <input type="file" accept="image/*,video/*,.mov,.mkv" onChange={(e) => onUpload(e.target.files?.[0])} />
                 </label>
-                <button type="button" className="btn" onClick={() => void useDemoPhoto()}>
-                  Use demo photo
-                </button>
               </div>
             ) : (
               <>
