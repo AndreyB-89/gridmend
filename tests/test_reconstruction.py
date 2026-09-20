@@ -8,6 +8,9 @@ from langchain_core.messages import AIMessage
 import numpy as np
 import pytest
 import trimesh
+from fastapi.testclient import TestClient
+from api.main import app
+from api.routes.reconstruction import service as reconstruction_service
 from api.schemas import ReferenceSpec, SuppliedMeasurement
 from cad.reference import build_reference, in_reference
 from engine.providers import video_nebius
@@ -713,6 +716,33 @@ def test_live_devin_fails_without_mock_fallback(tmp_path,media,monkeypatch):
     provider=Devin(service.store,job,client=client)
     with pytest.raises(ProviderError):provider.create('test')
     assert 'provider_response' in (service.store.directory(id)/'events.jsonl').read_text()
+
+
+def test_original_video_stays_playable_after_reload(tmp_path, monkeypatch):
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'MOCK')
+    store = Store(tmp_path/'runs')
+    monkeypatch.setattr(reconstruction_service, 'store', store)
+    job = reconstruction_service.new()
+    path = store.directory(job['job_id'])/'original-video.bin'
+    content = b'\x00\x00\x00\x18ftypisom' + b'synthetic-video-bytes'
+    path.write_bytes(content)
+    job.update(status='ACCEPTED', video={'sha256': digest(path)})
+    store.save(job)
+    with TestClient(app) as client:
+        response = client.get(f'/api/reconstructions/{job["job_id"]}/files/original-video.bin')
+        assert response.status_code == 200
+        assert response.content == content
+        assert response.headers['content-type'] == 'video/mp4'
+        partial = client.get(
+            f'/api/reconstructions/{job["job_id"]}/files/original-video.bin',
+            headers={'Range': 'bytes=4-11'},
+        )
+        assert partial.status_code == 206
+        assert partial.content == content[4:12]
+        assert partial.headers['content-range'] == f'bytes 4-11/{len(content)}'
+        assert client.get(f'/api/reconstructions/{job["job_id"]}/files/private.txt').status_code == 404
+        path.write_bytes(content+b'tampered')
+        assert client.get(f'/api/reconstructions/{job["job_id"]}/files/original-video.bin').status_code == 404
 
 
 @pytest.mark.parametrize('size', [29999, 30000, 60000])

@@ -1,6 +1,6 @@
 """Video endpoints reuse the current app/chat; all long reconstruction work is background."""
 import asyncio
-from pathlib import Path
+from functools import lru_cache
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from api.schemas import VideoConfirm, VideoState, VideoTurn
@@ -11,6 +11,25 @@ from engine.reconstruction.store import digest
 
 router = APIRouter(prefix='/api/reconstructions')
 service = Reconstruction()
+
+
+def video_media_type(path):
+    with path.open('rb') as stream:
+        header = stream.read(4096)
+    if len(header) >= 12 and header[4:8] == b'ftyp':
+        return 'video/mp4'
+    if header.startswith(b'\x1a\x45\xdf\xa3'):
+        return 'video/webm' if b'webm' in header.lower() else 'video/x-matroska'
+    if header.startswith(b'RIFF') and header[8:12] == b'AVI ':
+        return 'video/x-msvideo'
+    if header.startswith(b'OggS'):
+        return 'video/ogg'
+    return 'application/octet-stream'
+
+
+@lru_cache(maxsize=64)
+def source_digest_matches(path, size, modified_ns, expected):
+    return digest(path) == expected
 
 
 def error(exc):
@@ -83,12 +102,22 @@ def download(job_id: str, relative: str):
     try:
         job = service.store.load(job_id)
         path = (service.store.directory(job_id)/relative).resolve()
-        # Only current registered validated artifacts, never raw inputs, private provider data or old attempts.
         url = f'/api/reconstructions/{job_id}/files/{relative}'
         allowed = job['reference'] + (job['result'] if job['status'] == 'ACCEPTED' else [])
+        source_video = relative == 'original-video.bin' and job.get('video')
+        if source_video:
+            allowed = allowed + [{'url': url, 'sha256': job['video']['sha256']}]
         artifact = next((a for a in allowed if a['url'] == url), None)
-        if not artifact or not path.is_relative_to(service.store.directory(job_id)) or not path.is_file() or digest(path) != artifact['sha256']:
+        valid = bool(artifact) and path.is_relative_to(service.store.directory(job_id)) and path.is_file()
+        if valid and source_video:
+            stat = path.stat()
+            valid = source_digest_matches(path, stat.st_size, stat.st_mtime_ns, artifact['sha256'])
+        elif valid:
+            valid = digest(path) == artifact['sha256']
+        if not valid:
             raise ValueError('Artifact is not a current validated download.')
+        if source_video:
+            return FileResponse(path, media_type=video_media_type(path), content_disposition_type='inline')
         return FileResponse(path, filename=path.name, media_type='application/octet-stream')
     except (ValueError, FileNotFoundError):
         return JSONResponse({'error': 'INVALID_INPUT', 'message': 'Artifact is not a current validated download.'}, status_code=404)
