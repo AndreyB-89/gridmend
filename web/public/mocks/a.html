@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridMend drafting sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF1F4;
+  --sheet:#F7F9FB;
+  --ink:#1C2B45;
+  --ink-2:#4A5A73;
+  --ink-3:#6B7A90;
+  --grid:#CCD6DE;
+  --grid-2:#DEE5EB;
+  --part:#EDB915;
+  --missing:#D2402F;
+  --ok:#2E8B57;
+  --draft:#C8641E;
+  --focus:#2F6FE0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font-family:"Archivo",system-ui,sans-serif;
+  font-stretch:100%;
+  color:var(--ink);
+  background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+    linear-gradient(var(--grid-2) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid-2) 1px,transparent 1px);
+  background-size:80px 80px,80px 80px,16px 16px,16px 16px;
+  font-size:14px;line-height:1.45;
+  font-variant-numeric:tabular-nums;
+  display:flex;flex-direction:column;min-height:100vh;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2.5px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums lining-nums}
+
+/* Header */
+header{
+  display:flex;align-items:center;gap:20px;
+  padding:10px 24px;height:54px;flex:none;
+  background:var(--ink);color:#fff;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.brand svg{flex:none}
+.brand b{font-stretch:75%;font-weight:800;font-size:24px;letter-spacing:.2px}
+.brand span{font-stretch:88%;color:#B6C2D3;font-size:14px}
+.providers{margin-left:auto;display:flex;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:4px 10px 4px 9px;border:1px solid #3E5073;font-size:13px;font-stretch:88%}
+.badge i{width:8px;height:8px;border-radius:50%;background:#4CC38A;box-shadow:0 0 0 3px rgba(76,195,138,.2)}
+.badge em{font-style:normal;color:#9FE0BE;font-weight:600}
+
+/* Layout */
+main{
+  flex:1;min-height:0;
+  display:grid;grid-template-columns:minmax(380px,40fr) 60fr;
+  gap:20px;padding:18px 24px 20px;
+}
+
+/* Photo sheet */
+.photo{
+  position:relative;min-height:0;
+  background:var(--sheet);
+  border:2px solid var(--ink);
+  display:flex;flex-direction:column;
+}
+.photo-head{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--ink)}
+.photo-head h2{margin:0;font-size:16px;font-stretch:80%;font-weight:700}
+.photo-head p{margin:0;color:var(--ink-2);font-size:13px}
+.seg{margin-left:auto;display:flex;border:1px solid var(--ink)}
+.seg button{background:none;border:0;padding:4px 10px;font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.drawing{flex:1;min-height:0;position:relative}
+.drawing svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.photo-foot{display:flex;gap:18px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--ink);font-size:13px;color:var(--ink-2)}
+.photo-foot b{color:var(--ink);font-weight:600}
+.key{display:inline-flex;align-items:center;gap:6px}
+.key s{display:inline-block;width:16px;height:3px;text-decoration:none}
+
+/* Dimension callouts */
+.dim line,.dim path.l{stroke:var(--ink);stroke-width:2.2;fill:none}
+.dim .ext{stroke-width:1.4}
+.dim .arrow{fill:var(--ink)}
+.dim text{fill:var(--ink);paint-order:stroke;stroke:var(--sheet);stroke-width:7px;stroke-linejoin:round}
+.dim .v{font-size:31px;font-weight:700;font-stretch:72%}
+.dim .s{font-size:21px;font-weight:500;font-stretch:90%}
+.dim .s.ok{fill:var(--ok)}
+.dim.faint line{stroke:var(--ink-2);stroke-width:1.4}
+.dim.faint .arrow{fill:var(--ink-2)}
+.dim.faint .v{font-size:22px;font-weight:600;fill:var(--ink-2)}
+.dim.miss line,.dim.miss path.l{stroke:var(--missing)}
+.dim.miss .v{fill:var(--missing)}
+.dim.draft line,.dim.draft path.l{stroke:var(--draft);stroke-dasharray:6 5}
+.dim.draft .ext{stroke-dasharray:3 4}
+.dim.draft .arrow{fill:var(--draft)}
+.dim.draft .v{fill:var(--draft)}
+.dim.draft .s{fill:var(--draft)}
+.dim line,.dim path.l,.dim .arrow{filter:drop-shadow(0 0 1.2px #F7F9FB) drop-shadow(0 0 1.2px #F7F9FB)}
+.dim line,.dim .arrow,.dim text{transition:stroke .4s,fill .4s}
+
+/* Title block */
+.block{
+  min-height:0;overflow:auto;
+  background:var(--sheet);
+  border:2px solid var(--ink);
+  display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);
+  grid-template-rows:auto auto 1fr auto;
+}
+.cell{border-right:1px solid var(--ink);border-bottom:1px solid var(--ink);padding:10px 16px;min-width:0}
+.cell.r{border-right:0}
+.cell.last{border-bottom:0}
+.span2{grid-column:1 / 3;border-right:0}
+
+.step-h{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+.step-h .n{
+  flex:none;display:inline-grid;place-items:center;width:26px;height:26px;
+  border:1.5px solid var(--ink);font-weight:700;font-stretch:75%;font-size:15px;
+  transform:translateY(3px)
+}
+.step-h h3{margin:0;font-size:19px;font-weight:700;font-stretch:78%;letter-spacing:.1px}
+.step-h .st{margin-left:auto;font-size:13px;color:var(--ink-2);white-space:nowrap}
+.done .step-h .n{background:var(--ink);color:#fff}
+.active .step-h .n{background:var(--part);border-color:var(--ink)}
+.st.okc{color:var(--ok);font-weight:600}
+.st.dr{color:var(--draft);font-weight:600}
+
+.row1{display:flex;align-items:center;gap:18px;padding-top:10px;padding-bottom:10px}
+.row1 .step-h{margin:0}
+.row1 p{margin:0;color:var(--ink-2);font-size:13.5px}
+.row1 .meta{margin-left:auto;display:flex;gap:18px;font-size:13px;color:var(--ink-2)}
+.row1 .meta b{color:var(--ink);font-weight:600}
+
+.ai{margin:0 0 6px;font-size:13.5px;line-height:1.4;color:var(--ink-2)}
+.ai b{color:var(--ink);font-weight:600}
+.q{margin:0 0 6px;font-size:16px;font-weight:600;font-stretch:90%}
+.voice{display:flex;gap:10px;align-items:flex-start;padding:6px 10px;background:#E4EAF0;margin-bottom:6px}
+.voice svg{flex:none;margin-top:2px}
+.voice p{margin:0;font-size:13.5px}
+.voice small{display:block;color:var(--ink-3);font-size:12px}
+.drafts{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:14px}
+.drafts td{padding:3px 0;border-bottom:1px dashed var(--grid)}
+.drafts td:last-child{text-align:right}
+.drafts .was{color:var(--ink-3);text-decoration:line-through}
+.drafts .val{font-weight:700;font-stretch:80%;font-size:16px}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;padding:1px 7px;border:1px dashed var(--draft);color:var(--draft);white-space:nowrap}
+.tag.ok{border:1px solid var(--ok);color:var(--ok)}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:1.5px solid var(--ink);background:var(--ink);color:#fff;padding:7px 14px;font-weight:600;font-stretch:88%;cursor:pointer;border-radius:2px}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.link{border:0;background:none;color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;padding:7px 4px}
+.btn:disabled{background:#C4CDD8;border-color:#C4CDD8;color:#fff;cursor:not-allowed}
+.btn.big{font-size:17px;padding:8px 20px;background:var(--part);color:var(--ink);border-color:var(--ink)}
+.btn.big:disabled{background:#E3E7EC;color:var(--ink-3);border-color:#C4CDD8}
+
+/* Section view */
+.section{display:flex;flex-direction:column}
+.section .cap{font-size:13px;color:var(--ink-2);margin:0 0 4px}
+.section .cap b{color:var(--ink);font-weight:700;font-stretch:80%;font-size:15px}
+.section svg{width:100%;flex:1;min-height:170px;max-height:260px}
+
+/* Dimensions table */
+.dims{width:100%;border-collapse:collapse;font-size:14px}
+.dims th{text-align:left;font-weight:500;color:var(--ink-3);font-size:12.5px;padding:0 0 4px;border-bottom:1px solid var(--ink)}
+.dims td{padding:4px 0;border-bottom:1px solid var(--grid)}
+.dims td.v{font-weight:700;font-stretch:78%;font-size:17px}
+.dims td.src{color:var(--ink-2)}
+.dims tr:last-child td{border-bottom:0}
+
+/* Build */
+.build-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.build-row p{margin:0;font-size:13px;color:var(--ink-2);max-width:32ch}
+.checks{list-style:none;margin:8px 0 8px;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px}
+.checks li{display:flex;align-items:center;gap:6px;color:var(--ink-3)}
+.checks li i{width:14px;height:14px;border:1.5px solid var(--grid);display:inline-grid;place-items:center}
+.built .checks li{color:var(--ink)}
+.built .checks li i{border-color:var(--ok);background:var(--ok)}
+.built .checks li i::after{content:"";width:6px;height:3px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.downloads{display:flex;flex-wrap:wrap;gap:6px}
+.dl{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ink);padding:4px 10px;font-size:13px;color:var(--ink);text-decoration:none;background:var(--sheet)}
+.dl[aria-disabled="true"]{border-color:var(--grid);color:var(--ink-3);pointer-events:none}
+.note{margin:6px 0 0;font-size:12.5px;color:var(--ink-3)}
+
+/* Viewer */
+#viewer{grid-row:3 / 5;grid-column:2}
+.viewer{position:relative;padding:0;display:flex;flex-direction:column;min-height:260px}
+.viewer .vh{display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px 0;font-size:13px;color:var(--ink-2)}
+.viewer .vh b{font-size:15px;color:var(--ink);font-stretch:80%}
+#three{flex:1;min-height:0;position:relative}
+#three canvas{display:block;width:100%!important;height:100%!important}
+.viewer .legend{display:flex;gap:14px;padding:0 14px 10px;font-size:12.5px;color:var(--ink-2)}
+.sw{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+.pending{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink-3);font-size:13px;pointer-events:none}
+
+.flash{animation:flash .9s ease-out}
+@keyframes flash{from{background:#FFF3C4}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}.dim line,.dim path.l,.dim .arrow{filter:drop-shadow(0 0 1.2px #F7F9FB) drop-shadow(0 0 1.2px #F7F9FB)}
+.dim line,.dim .arrow,.dim text{transition:none}}
+
+@media (max-height:780px) and (min-width:1001px){
+  main{padding:12px 20px 14px;gap:16px;grid-template-columns:minmax(360px,36fr) 64fr}
+  .cell{padding:8px 14px}
+  .ai,.voice small{display:none}
+  .q{font-size:15px}
+  .section svg{min-height:140px;max-height:210px}
+  .dims td{padding:2px 0}
+  .dims td.v{font-size:15px}
+  .row1{padding-top:6px;padding-bottom:6px}
+  .step-h h3{font-size:17px}
+  #viewer{grid-row:3;border-bottom:1px solid var(--ink)}
+  #step4{grid-column:1 / 3;grid-row:4;border-right:0;display:grid;grid-template-columns:auto 1fr;column-gap:24px;align-items:start}
+  #step4 .step-h{grid-column:1 / 3}
+  #step4 .build-row{grid-column:1;grid-row:2 / 5}
+  #step4 .build-row p{display:none}
+  #step4 .checks,#step4 .downloads,#step4 .note{grid-column:2}
+  #step4 .checks{margin:0 0 6px}
+  #step4 .note{margin-top:4px}
+  .photo-foot{gap:4px 14px;padding:6px 12px}
+  .viewer{min-height:170px}
+  .block{grid-template-rows:auto auto minmax(0,1fr) auto}
+}
+@media (max-width:1360px){.photo-head p{display:none}.photo-head h2{white-space:nowrap}}
+@media (max-width:1000px){
+  main{grid-template-columns:minmax(0,1fr);padding:12px 16px}
+  .photo{height:auto}
+  .drawing{aspect-ratio:3/4}
+  .photo-head p{display:none}
+  .block{overflow:visible;display:flex;flex-direction:column}
+  #viewer{grid-row:auto;grid-column:auto}
+  .providers .badge{padding:3px 7px}
+  .dims{font-size:13px}
+  .photo,.block{min-width:0}
+  .brand b{font-size:21px}
+  .providers{gap:4px}
+  .row1 p{flex-basis:100%}
+  .span2,.cell{grid-column:auto;border-right:0}
+  .row1{flex-wrap:wrap}
+  .row1 .meta{margin-left:0}
+  .viewer{height:340px}
+  header{padding:10px 16px}
+  .brand span{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="10" fill="none" stroke="#EDB915" stroke-width="4"/><path d="M13 3 A10 10 0 0 0 4.3 18" fill="none" stroke="#D2402F" stroke-width="4"/></svg>
+    <b>GridMend</b><span>Rebuild a broken part from one photo</span>
+  </div>
+  <div class="providers" aria-label="Provider connections">
+    <span class="badge"><i></i>Nebius <em>live</em></span>
+    <span class="badge"><i></i>SLNG <em>live</em></span>
+  </div>
+</header>
+
+<main>
+  <!-- Photo with CAD dimension callouts -->
+  <section class="photo" aria-labelledby="photo-h">
+    <div class="photo-head">
+      <h2 id="photo-h">Photo of the broken ring</h2>
+      <p>Drag a point to correct it.</p>
+      <div class="seg" role="group" aria-label="Photo view">
+        <button type="button" aria-pressed="true" data-view="overlay">Fitted</button>
+        <button type="button" aria-pressed="false" data-view="photo">Original</button>
+      </div>
+    </div>
+    <div class="drawing">
+      <svg viewBox="90 40 810 1080" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Photo with fitted circles. Outer diameter 41.3 millimetres and inner diameter 29.6 millimetres, both from the photo and confirmed. 168 degrees of the ring is missing and rebuilt in red.">
+        <defs>
+          <clipPath id="crop"><rect x="90" y="40" width="811" height="1080"/></clipPath>
+        </defs>
+        <image id="photoImg" href="/api/files/mock-overlay.png" x="0" y="0" width="901" height="1600" clip-path="url(#crop)"/>
+
+        <!-- card: 85.60 (long side) -->
+        <g class="dim faint">
+          <line class="ext" x1="722" y1="122" x2="772" y2="122"/>
+          <line class="ext" x1="718" y1="610" x2="772" y2="610"/>
+          <line x1="760" y1="136" x2="760" y2="320"/>
+          <line x1="760" y1="410" x2="760" y2="596"/>
+          <path class="arrow" d="M760 122 l-7 18 h14z"/>
+          <path class="arrow" d="M760 610 l-7 -18 h14z"/>
+          <text class="v" x="760" y="366" text-anchor="middle" transform="rotate(-90 760 366)">85.60</text>
+        </g>
+        <!-- card: 53.98 (short side) -->
+        <g class="dim faint">
+          <line class="ext" x1="407" y1="112" x2="407" y2="62"/>
+          <line class="ext" x1="718" y1="112" x2="718" y2="62"/>
+          <line x1="421" y1="74" x2="520" y2="74"/>
+          <line x1="606" y1="74" x2="704" y2="74"/>
+          <path class="arrow" d="M407 74 l18 -7 v14z"/>
+          <path class="arrow" d="M718 74 l-18 -7 v14z"/>
+          <text class="v" x="563" y="82" text-anchor="middle">53.98</text>
+        </g>
+
+        <!-- outer diameter -->
+        <g class="dim">
+          <line class="ext" x1="308" y1="890" x2="308" y2="1075"/>
+          <line class="ext" x1="552" y1="890" x2="552" y2="1075"/>
+          <line x1="326" y1="1060" x2="378" y2="1060"/>
+          <line x1="482" y1="1060" x2="534" y2="1060"/>
+          <path class="arrow" d="M308 1060 l20 -7.5 v15z"/>
+          <path class="arrow" d="M552 1060 l-20 -7.5 v15z"/>
+          <text class="v" x="430" y="1071" text-anchor="middle">Ø41.3</text>
+          <text class="s ok" x="430" y="1100" text-anchor="middle">from photo, confirmed ✓</text>
+        </g>
+
+        <!-- inner diameter: through centre, leader to the right -->
+        <g class="dim">
+          <line x1="378" y1="915" x2="484" y2="826"/>
+          <path class="l" d="M497.4 815.4 L568 756 H700"/>
+          <path class="arrow" d="M362.6 928.6 l9.1 -19.3 l9.6 11.5z"/>
+          <path class="arrow" d="M497.4 815.4 l-9.1 19.3 l-9.6 -11.5z"/>
+          <text class="v" x="576" y="746">Ø29.6</text>
+          <text class="s ok" x="576" y="780">from photo, confirmed ✓</text>
+        </g>
+
+        <!-- missing arc -->
+        <g class="dim miss">
+          <path class="l" d="M314 832 L262 724 H186"/>
+          <circle cx="314" cy="832" r="5" fill="#D2402F"/>
+          <text class="v" x="190" y="712">168° missing</text>
+          <text class="s" x="190" y="750" fill="#D2402F" style="fill:#D2402F">rebuilt in red, 192° survives</text>
+        </g>
+      </svg>
+    </div>
+    <div class="photo-foot">
+      <span class="key"><s style="background:#1D3FD8"></s>Card found, <b>85.60 × 53.98 mm</b></span>
+      <span class="key"><s style="background:#2E9E3A"></s>12 points on each edge</span>
+      <span class="key">Fit error <b class="num">0.23 mm</b></span>
+    </div>
+  </section>
+
+  <!-- Title block -->
+  <section class="block" id="block" aria-label="Steps">
+    <!-- 1 -->
+    <div class="cell span2 row1 done">
+      <div class="step-h"><span class="n">1</span><h3>Find edges</h3></div>
+      <p>Auto-detected. Drag a point on the photo to correct it.</p>
+      <div class="meta"><span>Outer <b class="num">41.3</b></span><span>Inner <b class="num">29.6</b></span><span class="st okc">Done</span></div>
+    </div>
+
+    <!-- 2 -->
+    <div class="cell active" id="step2">
+      <div class="step-h"><span class="n">2</span><h3>Answer questions</h3><span class="st dr" id="s2state">Draft, needs your check</span></div>
+      <p class="ai"><b>Nebius:</b> “I see about half of a yellow ring next to the card. The rest is missing. I rebuilt the missing part in red.”</p>
+      <p class="q">How thick is the ring? Please measure it with a caliper.</p>
+      <div class="voice">
+        <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><rect x="5" y="1" width="6" height="10" rx="3" fill="none" stroke="#1C2B45" stroke-width="1.6"/><path d="M2 8.5a6 6 0 0 0 12 0M8 14.5V17" fill="none" stroke="#1C2B45" stroke-width="1.6"/></svg>
+        <p>“Thickness is six millimetres, and there is a groove on the inside, one millimetre deep and two wide.”<small>You, via SLNG, transcribed in 0.4 s</small></p>
+      </div>
+      <table class="drafts" id="drafts">
+        <tr><td>Thickness</td><td><span class="was">unknown</span> <span class="val num">6.0 mm</span></td><td><span class="tag" data-tag>spoken, draft</span></td></tr>
+        <tr><td>Groove</td><td><span class="was">none</span> <span class="val num">1.0 × 2.0 mm</span></td><td><span class="tag" data-tag>spoken, draft</span></td></tr>
+      </table>
+      <div class="actions" id="s2actions">
+        <button class="btn" id="confirm" type="button">Confirm thickness and groove</button>
+        <button class="btn ghost" id="cancel" type="button">Cancel</button>
+        <button class="btn link" type="button">Type instead</button>
+      </div>
+    </div>
+
+    <!-- Section view: signature callouts for voice values -->
+    <div class="cell r section">
+      <p class="cap"><b>Section A–A</b>, ring wall</p>
+      <svg viewBox="0 0 300 262" role="img" aria-labelledby="secDesc">
+        <desc id="secDesc">Cross-section of the ring wall. Wall 5.85 millimetres from the photo. Thickness 6.0 and groove 1.0 by 2.0 millimetres from voice.</desc>
+        <defs>
+          <pattern id="hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="9" height="9" fill="#FBE7A6"/><line x1="0" y1="0" x2="0" y2="9" stroke="#1C2B45" stroke-width="1.2"/>
+          </pattern>
+        </defs>
+        <!-- axis of ring (to the left) -->
+        <line x1="20" y1="30" x2="20" y2="232" stroke="#6B7A90" stroke-width="1" stroke-dasharray="14 4 3 4"/>
+        <text x="26" y="244" font-size="12" fill="#6B7A90">ring axis</text>
+        <!-- profile: 5.85 wide x 6 tall, scale 22/mm. x 95..224, y 60..192. groove on inner (left) face 1 deep, 2 wide centred -->
+        <path d="M95 60 H224 V192 H95 V148 H117 V104 H95 Z" fill="url(#hatch)" stroke="#1C2B45" stroke-width="2.2"/>
+        <!-- wall width (photo, confirmed) -->
+        <g class="dim">
+          <line class="ext" x1="95" y1="54" x2="95" y2="22"/>
+          <line class="ext" x1="224" y1="54" x2="224" y2="22"/>
+          <line x1="109" y1="32" x2="132" y2="32"/>
+          <line x1="188" y1="32" x2="210" y2="32"/>
+          <path class="arrow" d="M95 32 l14 -5 v10z"/>
+          <path class="arrow" d="M224 32 l-14 -5 v10z"/>
+          <text class="v" x="160" y="40" text-anchor="middle" style="font-size:22px">5.85</text>
+        </g>
+        <!-- thickness (voice) -->
+        <g class="dim draft" data-voice>
+          <line class="ext" x1="230" y1="60" x2="272" y2="60"/>
+          <line class="ext" x1="230" y1="192" x2="272" y2="192"/>
+          <line x1="262" y1="74" x2="262" y2="104"/>
+          <line x1="262" y1="148" x2="262" y2="178"/>
+          <path class="arrow" d="M262 60 l-5 14 h10z"/>
+          <path class="arrow" d="M262 192 l-5 -14 h10z"/>
+          <text class="v" x="262" y="134" text-anchor="middle" style="font-size:24px">6.0</text>
+        </g>
+        <!-- groove width (voice) -->
+        <g class="dim draft" data-voice>
+          <line class="ext" x1="89" y1="104" x2="46" y2="104"/>
+          <line class="ext" x1="89" y1="148" x2="46" y2="148"/>
+          <line x1="56" y1="104" x2="56" y2="148"/>
+          <path class="arrow" d="M56 104 l-5 13 h10z"/>
+          <path class="arrow" d="M56 148 l-5 -13 h10z"/>
+          <text class="v" x="50" y="132" text-anchor="end" style="font-size:22px">2.0</text>
+        </g>
+        <!-- groove depth (voice) -->
+        <g class="dim draft" data-voice>
+          <line class="ext" x1="95" y1="198" x2="95" y2="218"/>
+          <line class="ext" x1="117" y1="154" x2="117" y2="218"/>
+          <line x1="70" y1="212" x2="81" y2="212"/>
+          <line x1="131" y1="212" x2="146" y2="212"/>
+          <path class="arrow" d="M95 212 l-14 -5 v10z"/>
+          <path class="arrow" d="M117 212 l14 -5 v10z"/>
+          <text class="v" x="152" y="220" style="font-size:22px">1.0</text>
+        </g>
+        <!-- legend for state -->
+        <g font-size="12">
+          <line x1="196" y1="240" x2="218" y2="240" stroke="#1C2B45" stroke-width="2"/>
+          <text x="222" y="244" fill="#1C2B45">confirmed</text>
+          <line x1="196" y1="256" x2="218" y2="256" stroke="#C8641E" stroke-width="2" stroke-dasharray="5 4" id="legDraft"/>
+          <text x="222" y="260" fill="#C8641E" id="legDraftT">draft</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- 3 -->
+    <div class="cell" id="step3">
+      <div class="step-h"><span class="n">3</span><h3>Confirm dimensions</h3><span class="st" id="s3state">2 of 4 confirmed</span></div>
+      <table class="dims">
+        <thead><tr><th scope="col">Dimension</th><th scope="col">Value</th><th scope="col">Source</th><th scope="col">State</th></tr></thead>
+        <tbody>
+          <tr><td>Outer Ø</td><td class="v num">41.3 mm</td><td class="src">Photo</td><td><span class="tag ok">confirmed ✓</span></td></tr>
+          <tr><td>Inner Ø</td><td class="v num">29.6 mm</td><td class="src">Photo</td><td><span class="tag ok">confirmed ✓</span></td></tr>
+          <tr><td>Thickness</td><td class="v num">6.0 mm</td><td class="src">Voice</td><td><span class="tag" data-tag>draft</span></td></tr>
+          <tr><td>Groove</td><td class="v num">1 × 2 mm</td><td class="src">Voice</td><td><span class="tag" data-tag>draft</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 3D viewer -->
+    <div class="cell r last viewer" id="viewer">
+      <div class="vh"><b>Rebuilt ring</b><span id="vstate">Preview from draft</span></div>
+      <div id="three" aria-label="3D view of the rebuilt ring. Drag to turn it."><div class="pending" id="pending">Loading 3D model</div></div>
+      <div class="legend"><span><i class="sw" style="background:#EDB915"></i>Surviving part</span><span><i class="sw" style="background:#D2402F"></i>Restored segment</span></div>
+    </div>
+
+    <!-- 4 -->
+    <div class="cell last" id="step4">
+      <div class="step-h"><span class="n">4</span><h3>Build CAD</h3><span class="st" id="s4state">Confirm all dimensions first</span></div>
+      <div class="build-row">
+        <button class="btn big" id="build" type="button" disabled>Build CAD</button>
+        <p id="buildNote">Makes STEP and STL files, then runs 5 independent checks.</p>
+      </div>
+      <ul class="checks" aria-label="Checks">
+        <li><i></i>Solid</li><li><i></i>Dimensions</li><li><i></i>Profile</li><li><i></i>STEP reopens</li><li><i></i>STL watertight</li>
+      </ul>
+      <div class="downloads">
+        <a class="dl" href="#" aria-disabled="true">STEP</a>
+        <a class="dl" href="#" aria-disabled="true">STL, full ring</a>
+        <a class="dl" href="#" aria-disabled="true">STL, missing segment</a>
+        <a class="dl" href="#" aria-disabled="true">Summary</a>
+      </div>
+      <p class="note">No physical fit tested. No printer available.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const flash = el => { if(reduce) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); };
+
+  // Photo view toggle
+  $$('.seg button').forEach(b => b.addEventListener('click', () => {
+    $$('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    $('#photoImg').setAttribute('href', b.dataset.view === 'photo' ? '/api/demo-photo' : '/api/files/mock-overlay.png');
+  }));
+
+  function confirmDraft(){
+    $$('[data-voice]').forEach(g => g.classList.remove('draft'));
+    $$('[data-tag]').forEach(t => { t.classList.add('ok'); t.textContent = t.closest('#drafts') ? 'spoken, confirmed ✓' : 'confirmed ✓'; });
+    $('#legDraft').style.opacity = .35; $('#legDraftT').style.opacity = .35;
+    const s2 = $('#step2'); s2.classList.remove('active'); s2.classList.add('done');
+    $('#s2state').textContent = 'Confirmed'; $('#s2state').className = 'st okc';
+    $('#s2actions').innerHTML = '<button class="btn ghost" type="button" id="edit">Change an answer</button>';
+    $('#edit').addEventListener('click', () => location.reload());
+    $('#s3state').textContent = '4 of 4 confirmed'; $('#s3state').className = 'st okc';
+    $('#step3').classList.add('done');
+    $('#step4').classList.add('active');
+    $('#s4state').textContent = 'Ready';
+    $('#build').disabled = false;
+    $('#vstate').textContent = 'Preview from confirmed values';
+    flash($('#step3'));
+  }
+  function build(){
+    const s4 = $('#step4'); s4.classList.add('built','done'); s4.classList.remove('active');
+    $('#s4state').textContent = '5 of 5 checks passed'; $('#s4state').className = 'st okc';
+    $('#build').textContent = 'Build again';
+    $('#buildNote').textContent = 'Built from 4 confirmed dimensions.';
+    $$('.dl').forEach(a => a.removeAttribute('aria-disabled'));
+    $('#vstate').textContent = 'Built CAD';
+    flash(s4);
+  }
+  $('#confirm').addEventListener('click', confirmDraft);
+  $('#cancel').addEventListener('click', () => { $('#drafts').style.opacity = .4; $('#s2state').textContent = 'Cancelled. Answer again.'; });
+  $('#build').addEventListener('click', build);
+  if (location.hash === '#confirmed' || location.hash === '#built') confirmDraft();
+  if (location.hash === '#built') build();
+})();
+</script>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const host = document.getElementById('three');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
+catch (e) { document.getElementById('pending').textContent = '3D view needs WebGL'; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+host.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 1, 1000);
+camera.up.set(0, 0, 1);
+camera.position.set(46, -58, 44);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xB9C4D0, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(40, -60, 90); scene.add(key);
+const rim = new THREE.DirectionalLight(0xdfe8ff, 0.8); rim.position.set(-60, 50, 20); scene.add(rim);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = !reduce;
+controls.autoRotateSpeed = 1.1;
+controls.enablePan = false;
+
+// faint drafting grid under the part
+const grid = new THREE.GridHelper(80, 16, 0x9FB0C2, 0xCCD6DE);
+grid.rotation.x = Math.PI / 2;
+scene.add(grid);
+
+const loader = new STLLoader();
+const load = url => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+Promise.all([load('/api/files/mock-ring.stl'), load('/api/files/mock-missing.stl')]).then(([ring, miss]) => {
+  ring.computeBoundingBox();
+  const c = new THREE.Vector3(); ring.boundingBox.getCenter(c);
+  const zmin = ring.boundingBox.min.z;
+  [ring, miss].forEach(g => { g.translate(-c.x, -c.y, -zmin); g.computeVertexNormals(); });
+  const matY = new THREE.MeshPhysicalMaterial({ color: 0xEDB915, roughness: 0.55, clearcoat: 0.15, clearcoatRoughness: 0.6 });
+  const matR = new THREE.MeshPhysicalMaterial({ color: 0xD2402F, roughness: 0.5, clearcoat: 0.15, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const a = new THREE.Mesh(ring, matY);
+  const b = new THREE.Mesh(miss, matR); b.scale.setScalar(1.004);
+  scene.add(a, b);
+  const h = ring.boundingBox.max.z - zmin;
+  controls.target.set(0, 0, h / 2);
+  radius = Math.hypot(ring.boundingBox.max.x - ring.boundingBox.min.x, h) / 2 + 2;
+  fit();
+  grid.position.z = -0.01;
+  controls.update();
+  document.getElementById('pending').remove();
+}).catch(() => { document.getElementById('pending').textContent = 'Could not load the 3D model'; });
+
+let radius = 26;
+const dir = new THREE.Vector3(46, -58, 44).normalize();
+function fit(){
+  const vf = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const hf = Math.atan(Math.tan(vf) * camera.aspect);
+  const d = radius / Math.sin(Math.min(vf, hf)) * 1.02;
+  camera.position.copy(controls.target).addScaledVector(dir, d);
+  controls.update();
+}
+function size(){
+  const w = host.clientWidth, h = host.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix(); fit();
+}
+new ResizeObserver(size).observe(host); size();
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

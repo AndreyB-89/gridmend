@@ -1,0 +1,35 @@
+{
+  "image": "sample-photos/20260919_180605.jpg",
+  "coords": "display pixels after EXIF orientation",
+  "image_size_px": [2252, 4000],
+  "card_size_mm": [85.6, 53.98],
+  "card_size_confirmed": false,
+  "corners_px": [
+    [1020.3, 300.4],
+    [1794.3, 308.7],
+    [1777.6, 1530.4],
+    [999.8, 1522.9]
+  ],
+  "outer_edge_points_px": [
+    [1232.0, 2429.0],
+    [1332.0, 2330.0],
+    [1374.0, 2195.0],
+    [1350.0, 2057.0],
+    [1267.0, 1944.0],
+    [1124.0, 1879.0],
+    [1000.0, 1887.0],
+    [878.0, 1955.0]
+  ],
+  "inner_edge_points_px": [
+    [1206.0, 2339.0],
+    [1276.0, 2268.0],
+    [1296.0, 2168.0],
+    [1268.0, 2071.0],
+    [1195.0, 2004.0],
+    [1106.0, 1967.0],
+    [1010.0, 1978.0],
+    [921.0, 2023.0]
+  ],
+  "source": "semi-automatic: picked by script from color mask, reviewed visually — operator should re-click in the UI",
+  "note": "Corners are the intersections of the 4 fitted card sides (the card has rounded corners). Edge points follow the yellow mask; on the right side of the arc the mask edge is the foot of the visible ring wall, not the top-face edge."
+}

@@ -6,15 +6,46 @@ HackBarna AI Summit Barcelona 2026 R&D demonstrator for damaged substation acces
 
 ## Current status
 
-Repository starter with a working standalone substation route explorer: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. The integrated web app, sponsor API connections and manufacturing CAD generator are **not implemented yet**.
+Repository starter with a working standalone substation route explorer: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. Implementation in progress on `feat/api-web`: FastAPI backend, CadQuery ring generator, card-scale circle fit, SLNG/Nebius adapters with visible MOCK mode, React + Three.js UI.
+
+## Run it
+
+Needs `uv` and Node 22. Python 3.12 is picked automatically (`.python-version`).
+
+```bash
+cp .env.example .env          # add NEBIUS_API_KEY, NEBIUS_MODEL, SLNG_API_KEY (without keys: MOCK mode, shown in the UI)
+uv sync
+cd web && npm install && npm run build && cd ..
+uv run uvicorn api.main:app --port 8000     # open http://127.0.0.1:8000
+```
+
+Web development with hot reload: `cd web && npm run dev` (proxies `/api` to port 8000).
+Tests: `uv run pytest -q`. Whole path: `scripts/smoke.sh`.
+
+## Video reconstruction on `devin-api`
+
+Upload the video, then give the final goal and measured dimensions in the chat:
+
+> Build the missing part of this ring with rectangular cross section, outer diameter 40 mm, inner diameter 36 mm and height 9 mm.
+
+The Nebius/LangChain agent treats the **complete intact reference** as an intermediate step. The operator does not need to request it separately. It calls the trusted measurement tool, asks for missing or conflicting values, and waits for **Confirm and build**. Its CadQuery tool then exports and checks the complete STL and STEP, retaining the ring's central hole. Dimensions and confirmation come from the operator; model-generated code is never executed.
+
+Only after these checks does GridMend send the original video, full reference STL, specification and frame manifest to Devin. The existing independent validator and same-session correction loop check the proposed missing material.
+
+Video reconstruction targets an **approximate hackathon demo**. Both the survivor and visible missing-region silhouettes must reach 70% IoU in at least two clear views. IoU measures silhouette overlap, not reconstruction accuracy or probability. The thresholds are not calibrated guarantees. Mesh integrity, confirmed dimensions, containment, at most 1% sampled overlap and at most 2% uncovered reference volume remain mandatory. Approximation notes are preserved in the validation report; an outstanding input request still prevents acceptance. The complete reference is shown with the proposed missing material highlighted in red.
+
+When the operator answers a Devin question without changing the specification, GridMend resumes the same session and candidate attempt. A delayed copy of that answered question cannot stop polling while Devin is still working.
+
+Video ingestion performs local decoding and frame extraction. It does not wait for a Nebius image analysis. The reference agent uses text and tools; `NEBIUS_VIDEO_MODEL` overrides its model, otherwise it uses `NEBIUS_TEXT_MODEL` (default `Qwen/Qwen3-235B-A22B-Instruct-2507`). LIVE requires server-side `NEBIUS_API_KEY` and `DEVIN_API_KEY`; `RECONSTRUCTION_MODE=MOCK` builds only the reference and starts no paid session.
+
+The supported intact templates are rings, cylinders, boxes and open-top truncated cones. “Cup”, “truncated cone” and “frustum” select `open_frustum`: an open top and closed bottom, centred on Z with its base at Z = 0. Bottom/base/basis diameter and top/upper diameter are separate outer measurements. Supply both diameters and height; radial wall thickness and axial bottom thickness each default to **1.5 mm**, as approved design parameters. These defaults are labelled in the readback, UI and provenance and must be confirmed; explicit thickness measurements override them. No thickness is inferred from the video. The complete cup is a revolved cross-section, with a linearly tapered outside and constant radial wall thickness. The validator checks its tapered walls and floor analytically. Computational validation does not establish physical fit.
 
 ## Start here
 
-1. Read [the team project plan](docs/project-plan.md).
-2. Use [ring contract v2](contracts/types.ts) as the shared API shape; Mortaza mirrors it in Pydantic/OpenAPI.
-3. Use [the middle-ring specimen record](fixtures/ring-demo.json); actual measurements remain unknown until scale/captures are validated.
-4. Copy `.env.example` to `.env` and supply your own sponsor credentials locally. Never commit `.env`.
-5. Work from the [ownership and ticket guide](CONTRIBUTING.md). There is no app startup command until the implementation scaffold is added.
+1. What we build tonight: [build plan v3](docs/build-plan.md). Rules: [project plan](docs/project-plan.md).
+2. Contract: [contracts/types.ts](contracts/types.ts) (v3), mirrored in `api/schemas.py`.
+3. Fixture: [ring-demo.json](fixtures/ring-demo.json). Raw photos stay local in `sample-photos/` (gitignored).
+4. Agents: [CLAUDE.md](CLAUDE.md) / AGENTS.md and [docs/claude-workflow.md](docs/claude-workflow.md).
 
 ## Substation application and roadmap
 

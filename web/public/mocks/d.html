@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridMend split reveal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F7FA;
+  --paper:#FFFFFF;
+  --ink:#2B2F36;
+  --ink-2:#4A515C;
+  --grey:#8A93A0;
+  --grey-text:#626B78;
+  --line:#DCE1E8;
+  --line-2:#C9D0DA;
+  --yellow:#F2B705;
+  --yellow-soft:#FFF4CC;
+  --red:#E0462F;
+  --red-soft:#FCE6E2;
+  --green:#23965E;
+  --green-soft:#DDF2E7;
+  --steel:#E9EDF2;
+  --focus:#1F6FEB;
+  --split:50%;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Schibsted Grotesk",system-ui,sans-serif;font-size:15px;line-height:1.4;
+  display:flex;flex-direction:column;min-height:100vh;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:lining-nums}
+.tab{font-variant-numeric:tabular-nums lining-nums}
+.tab .pt{font-variant-numeric:normal}
+
+/* Header */
+header{
+  display:flex;align-items:center;gap:20px;
+  padding:10px 24px;height:52px;flex:none;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.01em}
+.brand svg{flex:none}
+.job{color:var(--grey-text);font-size:14px}
+.job b{color:var(--ink);font-weight:600}
+.status{margin-left:auto;display:flex;gap:8px}
+.badge{
+  display:inline-flex;align-items:center;gap:7px;padding:4px 10px 4px 8px;border-radius:999px;
+  background:var(--paper);border:1px solid var(--line);font-size:13px;font-weight:600;
+}
+.badge i{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.badge span{color:var(--green);font-weight:700}
+
+/* Stage */
+.stage{
+  position:relative;flex:1 1 auto;min-height:300px;margin:0 16px;
+  border-radius:18px;overflow:hidden;background:#EEF1F5;
+  isolation:isolate;
+}
+@property --split{syntax:"<percentage>";inherits:true;initial-value:50%}
+.stage.reveal{transition:--split 1.3s cubic-bezier(.2,.7,.2,1)}
+.layer{position:absolute;inset:0}
+.rebuilt{
+  background:
+    radial-gradient(120% 90% at 60% 45%, #FFFFFF 0%, #F1F4F8 55%, #E3E8EF 100%);
+}
+.rebuilt canvas{display:block;width:100%;height:100%;touch-action:none}
+.broken{
+  z-index:2;overflow:hidden;
+  background:radial-gradient(90% 80% at 50% 55%, #E7EBF0 0%, #D5DBE3 100%);
+  clip-path:inset(0 calc(100% - var(--split)) 0 0);
+}
+.print{
+  position:absolute;overflow:hidden;border:7px solid #fff;border-radius:6px;
+  box-shadow:0 1px 2px rgba(43,47,54,.12),0 18px 40px -16px rgba(43,47,54,.4);
+  transform:rotate(-1.2deg);transform-origin:var(--ox,50%) var(--oy,50%);
+}
+.print img{position:absolute;display:block;max-width:none;user-select:none;-webkit-user-drag:none}
+
+/* side captions */
+.side-cap{
+  position:absolute;top:16px;z-index:4;display:flex;flex-direction:column;gap:8px;
+  pointer-events:none;transition:opacity .2s;
+}
+.side-cap.left{right:calc(100% - var(--split) + 34px);align-items:flex-end;text-align:right}
+.side-cap.right{left:calc(var(--split) + 34px);align-items:flex-start}
+.side-cap h2{
+  margin:0;font-size:34px;line-height:1;font-weight:800;letter-spacing:-.02em;
+}
+.side-cap.left h2{color:var(--ink)}
+.side-cap.right h2{color:var(--ink)}
+.tag{
+  display:inline-flex;align-items:center;gap:7px;border-radius:8px;padding:5px 9px;
+  font-size:13px;font-weight:600;white-space:nowrap;
+}
+.tag.dark{background:rgba(24,26,30,.72);color:#fff;backdrop-filter:blur(6px)}
+.tag.light{background:rgba(255,255,255,.85);color:var(--ink);border:1px solid var(--line)}
+.sw{width:10px;height:10px;border-radius:3px;flex:none}
+.side-cap.hide{opacity:0}
+
+.photo-note{
+  position:absolute;left:16px;bottom:16px;z-index:3;max-width:min(330px,40%);
+  background:rgba(24,26,30,.78);color:#fff;border-radius:12px;padding:10px 12px;font-size:13px;
+  backdrop-filter:blur(6px);
+}
+.photo-note b{font-weight:700}
+.photo-note p{margin:2px 0 0;color:#D6DAE0}
+.photo-note .ok{color:#7FE0AE}
+
+.view-note{
+  position:absolute;right:16px;bottom:16px;z-index:1;font-size:13px;color:var(--grey-text);
+  background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:10px;padding:8px 11px;
+}
+.view-note b{color:var(--ink)}
+
+/* Split handle: the signature */
+.handle{
+  position:absolute;top:0;bottom:0;left:var(--split);z-index:5;width:0;
+}
+.handle::before{
+  content:"";position:absolute;top:0;bottom:0;left:-1.5px;width:3px;background:#fff;
+  box-shadow:0 0 0 1px rgba(43,47,54,.18),0 0 18px rgba(0,0,0,.18);
+}
+.knob{
+  position:absolute;top:50%;left:0;transform:translate(-50%,-50%);
+  width:56px;height:88px;border-radius:28px;border:3px solid #fff;
+  background:var(--ink);color:#fff;display:grid;place-items:center;
+  box-shadow:0 6px 22px rgba(20,24,30,.28);cursor:ew-resize;touch-action:none;
+  padding:0;
+}
+.knob:hover{background:#1f2227}
+.knob:focus-visible{outline:4px solid var(--focus);outline-offset:3px;border-radius:28px}
+.knob .pct{position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;
+  background:#fff;color:var(--ink);border-radius:6px;padding:2px 6px;white-space:nowrap;opacity:0;transition:opacity .15s;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.handle.dragging .pct,.knob:focus-visible .pct{opacity:1}
+.hint{
+  position:absolute;bottom:18px;left:0;transform:translateX(-50%);
+  white-space:nowrap;font-size:12px;font-weight:600;color:var(--ink);
+  background:#fff;border-radius:999px;padding:4px 10px;box-shadow:0 2px 10px rgba(0,0,0,.12);
+  transition:opacity .3s;
+}
+.hint.gone{opacity:0}
+
+/* Dock */
+.dock{
+  flex:none;margin:12px 16px 16px;
+  display:grid;grid-template-columns:minmax(200px,.8fr) minmax(330px,1.55fr) minmax(300px,1.25fr) minmax(250px,1fr);
+  background:var(--paper);border-radius:18px;border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(43,47,54,.04),0 10px 30px -18px rgba(43,47,54,.25);
+}
+.cell{padding:14px 18px 16px;min-width:0;position:relative}
+.cell + .cell{border-left:1px solid var(--line)}
+.step{
+  display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:14px;font-weight:700;color:var(--ink);
+}
+.step .n{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;
+  background:var(--steel);color:var(--ink-2);
+}
+.step .n.done{background:var(--green);color:#fff}
+.step .n.now{background:var(--ink);color:#fff}
+.step small{margin-left:auto;font-weight:500;color:var(--grey-text);font-size:12.5px}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;
+  padding:9px 14px;font-size:14px;font-weight:700;border:1.5px solid var(--line-2);background:var(--paper);
+  transition:background .15s,border-color .15s,transform .1s;
+}
+.btn:hover{border-color:var(--ink)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.primary:hover{background:#1c1f24}
+.btn.go{background:var(--yellow);border-color:var(--yellow);color:#1c1f24;font-size:16px;padding:11px 18px}
+.btn.go:hover{background:#E0A800;border-color:#E0A800}
+.btn.go.done{background:var(--green-soft);border-color:var(--green);color:#146B42;opacity:1;cursor:default}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.link{background:none;border:0;padding:4px 2px;font-size:13px;font-weight:600;color:var(--grey-text);text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:var(--ink)}
+
+.detect .facts{margin:0;padding:0;list-style:none;display:grid;gap:5px;font-size:13.5px}
+.detect .facts li{display:flex;gap:8px;align-items:baseline}
+.detect .facts li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);flex:none;transform:translateY(-1px)}
+.detect .facts b{font-weight:700}
+.detect .btn{margin-top:10px}
+
+/* AI talk */
+.talk{display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:start}
+.ptt{
+  grid-row:span 2;width:62px;height:62px;border-radius:50%;border:0;background:var(--red);color:#fff;
+  display:grid;place-items:center;position:relative;box-shadow:0 6px 16px -6px rgba(224,70,47,.7);
+}
+.ptt:hover{background:#C93B26}
+.ptt[aria-pressed="true"]{background:var(--ink);box-shadow:0 0 0 6px var(--red-soft)}
+.ptt .lab{position:absolute;top:66px;font-size:11.5px;font-weight:600;color:var(--grey-text);white-space:nowrap}
+.q{margin:0;font-size:16px;font-weight:700;line-height:1.3;letter-spacing:-.005em}
+.q-src{font-size:12.5px;color:var(--grey-text);font-weight:500;display:block;margin-top:1px}
+.said{margin:0;font-size:13.5px;color:var(--ink-2);border-left:3px solid var(--line-2);padding-left:9px}
+.said em{font-style:normal;font-weight:600;color:var(--grey-text);font-size:12px;display:block}
+.wave{display:none;gap:3px;align-items:center;height:18px}
+.wave i{width:3px;background:var(--red);border-radius:2px;animation:w .9s ease-in-out infinite}
+.wave i:nth-child(2){animation-delay:.1s}.wave i:nth-child(3){animation-delay:.2s}.wave i:nth-child(4){animation-delay:.3s}.wave i:nth-child(5){animation-delay:.4s}
+@keyframes w{0%,100%{height:4px}50%{height:18px}}
+.listening .wave{display:flex}
+.listening .said{display:none}
+
+.draft{
+  margin-top:10px;border:1.5px dashed var(--ink-2);border-radius:12px;padding:8px 10px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FAFBFC;
+}
+.draft .items{display:flex;gap:14px;font-size:13.5px;flex:1 1 auto;min-width:0}
+.draft .items div{display:flex;flex-direction:column}
+.draft .items s{color:var(--grey);text-decoration:line-through;font-size:12px}
+.draft .items strong{font-size:15px}
+.draft .acts{display:flex;gap:6px;align-items:center}
+.draft.confirmed{border-style:solid;border-color:var(--green);background:var(--green-soft)}
+.draft .ok-line{display:none;font-weight:700;color:#146B42;font-size:14px}
+.draft.confirmed .ok-line{display:block}
+.draft.confirmed .items,.draft.confirmed .acts{display:none}
+.draft.cancelled{border-color:var(--line-2);opacity:.7}
+
+/* Dimensions */
+.dims{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+.big .lab{font-size:13px;font-weight:600;color:var(--grey-text)}
+.big .val{font-size:52px;line-height:.95;font-weight:800;letter-spacing:-.035em;margin:2px 0 4px}
+.big .val u{text-decoration:none;font-size:18px;font-weight:600;letter-spacing:0;margin-left:3px;color:var(--grey-text)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--grey-text);flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 8px 2px 6px;font-weight:700;font-size:12px}
+.pill.ok{background:var(--green-soft);color:#146B42}
+.pill.dr{background:var(--paper);color:var(--ink);border:1.5px dashed var(--ink-2);padding:1px 8px}
+.small-dims{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;border-top:1px solid var(--line);padding-top:8px;margin-top:4px}
+.sd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sd .lab{font-size:13px;color:var(--grey-text);font-weight:600;min-width:64px}
+.sd .v{font-size:20px;font-weight:800;letter-spacing:-.01em}
+
+/* Build */
+.build-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.need{font-size:12.5px;color:var(--grey-text)}
+.checks{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px}
+.checks li{display:flex;align-items:center;gap:5px;color:var(--grey-text)}
+.checks li .c{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line-2);display:grid;place-items:center}
+.checks li.pass{color:var(--ink)}
+.checks li.pass .c{background:var(--green);border-color:var(--green)}
+.dl{display:none;flex-wrap:wrap;gap:6px;margin-top:8px}
+.built .dl{display:flex}
+.dl a{
+  font-size:13px;font-weight:700;color:var(--ink);text-decoration:none;border-radius:8px;padding:5px 9px;
+  background:var(--steel);display:inline-flex;gap:6px;align-items:center;
+}
+.dl a:hover{background:#DDE3EA}
+.dl a .sw{width:8px;height:8px;border-radius:2px}
+.note{margin:6px 0 0;font-size:12px;color:var(--grey-text)}
+.built .need{display:none}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Projector 1280x720 tightening */
+@media (max-height:780px){
+  header{height:46px;padding:6px 20px}
+  .cell{padding:10px 14px 12px}
+  .step{margin-bottom:7px}
+  .big .val{font-size:42px}
+  .sd .v{font-size:17px}
+  .small-dims{margin-top:2px}
+  .draft .items strong{font-size:14px}
+  .q{font-size:15px}
+  .ptt{width:54px;height:54px}
+  .ptt .lab{top:57px}
+  .dock{margin:10px 12px 12px}
+  .stage{margin:0 12px}
+  .side-cap h2{font-size:30px}
+  .draft{margin-top:7px;padding:6px 9px}
+  .checks{margin-top:7px}
+  .small-dims{padding-top:6px}
+  .detect .btn{margin-top:7px}
+}
+@media (max-width:1100px){
+  .dock{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .cell:nth-child(3){border-left:0}
+  .cell:nth-child(n+3){border-top:1px solid var(--line)}
+  .stage{min-height:52vh}
+}
+@media (max-width:640px){
+  header{height:auto;flex-wrap:wrap;gap:8px}
+  .job{display:none}
+  .dock{grid-template-columns:minmax(0,1fr)}
+  .step small{display:none}
+  .status{margin-left:0}
+  .cell + .cell{border-left:0;border-top:1px solid var(--line)}
+  .side-cap h2{font-size:22px}
+  .side-cap .tag{display:none}
+  .photo-note,.view-note{display:none}
+  .big .val{font-size:40px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+.still *{transition:none!important}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <path d="M13 3a10 10 0 0 1 10 10" stroke="#F2B705" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M23 13A10 10 0 1 1 13 3" stroke="#E0462F" stroke-width="5" fill="none" stroke-linecap="round"/>
+    </svg>
+    GridMend
+  </div>
+  <div class="job">Part: <b>yellow ring, half missing</b></div>
+  <div class="status" aria-label="Provider connections">
+    <span class="badge"><i></i>Nebius <span>Live</span></span>
+    <span class="badge"><i></i>SLNG <span>Live</span></span>
+  </div>
+</header>
+
+<main class="stage" id="stage" aria-label="Before and after view. Drag the handle to compare the broken photo with the rebuilt ring.">
+  <div class="layer rebuilt" id="rebuilt">
+    <canvas id="gl" aria-label="3D view of the rebuilt ring. Drag to rotate."></canvas>
+  </div>
+  <div class="view-note" id="viewNote"><b>Drag to rotate.</b> Scroll to zoom.</div>
+
+  <div class="layer broken" id="broken">
+    <div class="print" id="print"><img id="photo" src="/api/files/mock-overlay.png" alt="Top-down photo: a bank card and half of a yellow ring. Fitted circles in green, the missing arc in red."></div>
+    <div class="photo-note">
+      <b class="ok">Auto-detected.</b> Drag a point to correct it.
+      <p>12 points on each edge. Fit error <span class="num">0.23 mm</span>.</p>
+    </div>
+  </div>
+
+  <div class="side-cap left" id="capL">
+    <h2>Broken</h2>
+    <span class="tag dark"><span class="sw" style="background:#2F6BFF"></span><span>Card 85.60 × 53.98 mm, measured</span></span>
+    <span class="tag dark"><span class="sw" style="background:var(--red)"></span><span>168° missing</span></span>
+  </div>
+  <div class="side-cap right" id="capR">
+    <h2 id="rebuiltTitle">Rebuilt</h2>
+    <span class="tag light"><span class="sw" style="background:var(--yellow)"></span><span>192° survived</span></span>
+    <span class="tag light"><span class="sw" style="background:var(--red)"></span><span>168° restored</span></span>
+    <span class="tag light" id="buildTag">Preview. Not built yet.</span>
+  </div>
+
+  <div class="handle" id="handle">
+    <button class="knob" id="knob" role="slider" aria-label="Split between broken photo and rebuilt ring"
+      aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="50 percent broken photo">
+      <svg width="30" height="20" viewBox="0 0 30 20" aria-hidden="true"><path d="M10 3 3 10l7 7M20 3l7 7-7 7" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="pct num" id="pct">50%</span>
+    </button>
+    <div class="hint" id="hint">Drag to compare</div>
+  </div>
+</main>
+
+<section class="dock" aria-label="Controls">
+  <!-- 1 Detect -->
+  <div class="cell detect">
+    <p class="step"><span class="n done">1</span>Detect</p>
+    <ul class="facts">
+      <li><span>Card found, <b>measured</b></span></li>
+      <li><span>Both edges, <b class="num">12</b> points each</span></li>
+      <li><span>Fit error <b class="num">0.23 mm</b></span></li>
+    </ul>
+    <button class="btn" id="autoBtn">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg>
+      Auto-detect again
+    </button>
+  </div>
+
+  <!-- 2 Ask -->
+  <div class="cell" id="askCell">
+    <p class="step"><span class="n now" id="n2">2</span>Answer the question<small>Nebius asks, SLNG listens</small></p>
+    <div class="talk" id="talk">
+      <button class="ptt" id="ptt" aria-pressed="false" aria-label="Hold to talk">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2.5" width="8" height="13" rx="4" fill="#fff"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        <span class="lab">Hold to talk</span>
+      </button>
+      <p class="q">How thick is the ring? Please measure it with a caliper.<span class="q-src">The photo cannot show thickness.</span></p>
+      <div>
+        <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <p class="said" id="said"><em>You said (SLNG, <span class="num">0.4 s</span>)</em>“Thickness is six millimetres, and there is a groove on the inside, one millimetre deep and two wide.”</p>
+      </div>
+    </div>
+    <div class="draft" id="draft" role="group" aria-label="Draft from your answer">
+      <div class="items">
+        <div><span>Thickness <s>unknown</s></span><strong class="num">6.0 mm</strong></div>
+        <div><span>Groove</span><strong class="num">1.0 × 2.0 mm</strong></div>
+      </div>
+      <div class="acts">
+        <button class="btn primary" id="confirmBtn">Confirm</button>
+        <button class="btn" id="cancelBtn">Cancel</button>
+        <button class="link" id="typeBtn">Type instead</button>
+      </div>
+      <span class="ok-line">Thickness and groove confirmed.</span>
+    </div>
+  </div>
+
+  <!-- 3 Dimensions -->
+  <div class="cell">
+    <p class="step"><span class="n" id="n3">3</span>Dimensions<small>Every value has a source</small></p>
+    <div class="dims">
+      <div class="big">
+        <div class="lab">Outer diameter</div>
+        <div class="val tab">41<span class="pt">.</span>3<u>mm</u></div>
+        <div class="state">from photo <span class="pill ok">✓ Confirmed</span></div>
+      </div>
+      <div class="big">
+        <div class="lab">Inner diameter</div>
+        <div class="val tab">29<span class="pt">.</span>6<u>mm</u></div>
+        <div class="state">from photo <span class="pill ok">✓ Confirmed</span></div>
+      </div>
+      <div class="small-dims">
+        <div class="sd"><span class="lab">Thickness</span><span class="v num">6.0 mm</span><span class="state">voice <span class="pill dr" data-draft>Draft</span></span></div>
+        <div class="sd"><span class="lab">Groove</span><span class="v num">1 × 2 mm</span><span class="state">voice <span class="pill dr" data-draft>Draft</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 Build -->
+  <div class="cell" id="buildCell">
+    <p class="step"><span class="n" id="n4">4</span>Build CAD</p>
+    <div class="build-row">
+      <button class="btn go" id="buildBtn" disabled>
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1.5 16 5.5v7L9 16.5 2 12.5v-7z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M2 5.5 9 9.5l7-4M9 9.5v7" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+        Build CAD
+      </button>
+      <span class="need" id="need">Confirm the draft first.</span>
+    </div>
+    <ul class="checks" id="checks" aria-label="Checks">
+      <li><span class="c"></span>Solid</li>
+      <li><span class="c"></span>Dimensions</li>
+      <li><span class="c"></span>Profile</li>
+      <li><span class="c"></span>STEP reopens</li>
+      <li><span class="c"></span>STL watertight</li>
+    </ul>
+    <div class="dl" aria-label="Downloads">
+      <a href="#">STEP</a>
+      <a href="/api/files/mock-ring.stl" download><span class="sw" style="background:var(--yellow)"></span>STL full ring</a>
+      <a href="/api/files/mock-missing.stl" download><span class="sw" style="background:var(--red)"></span>STL missing segment</a>
+      <a href="#">Summary</a>
+    </div>
+    <p class="note">No physical fit tested. No printer available.</p>
+  </div>
+</section>
+<p class="sr" aria-live="polite" id="live"></p>
+
+<script>
+/* ---------- Split handle ---------- */
+(() => {
+  const stage = document.getElementById('stage');
+  const handle = document.getElementById('handle');
+  const knob = document.getElementById('knob');
+  const pct = document.getElementById('pct');
+  const hint = document.getElementById('hint');
+  const capL = document.getElementById('capL'), capR = document.getElementById('capR');
+  let split = 50;
+  function set(v){
+    split = Math.max(0, Math.min(100, v));
+    stage.style.setProperty('--split', split + '%');
+    const r = Math.round(split);
+    knob.setAttribute('aria-valuenow', r);
+    knob.setAttribute('aria-valuetext', r + ' percent broken photo');
+    pct.textContent = r + '%';
+    const w = stage.clientWidth;
+    capL.classList.toggle('hide', split / 100 * w < 230);
+    capR.classList.toggle('hide', (1 - split / 100) * w < 230);
+  }
+  window.__setSplit = set;
+  function fromEvent(e){
+    const r = stage.getBoundingClientRect();
+    return (e.clientX - r.left) / r.width * 100;
+  }
+  knob.addEventListener('pointerdown', e => {
+    knob.setPointerCapture(e.pointerId);
+    handle.classList.add('dragging'); hint.classList.add('gone');
+    e.preventDefault(); knob.focus();
+  });
+  knob.addEventListener('pointermove', e => { if (knob.hasPointerCapture(e.pointerId)) set(fromEvent(e)); });
+  const end = e => { handle.classList.remove('dragging'); };
+  knob.addEventListener('pointerup', end); knob.addEventListener('pointercancel', end);
+  knob.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 10 : 2;
+    const map = {ArrowLeft:-step, ArrowDown:-step, ArrowRight:step, ArrowUp:step};
+    if (e.key in map){ set(split + map[e.key]); e.preventDefault(); hint.classList.add('gone'); }
+    else if (e.key === 'Home'){ set(0); e.preventDefault(); }
+    else if (e.key === 'End'){ set(100); e.preventDefault(); }
+  });
+  window.addEventListener('resize', () => set(split));
+
+  // One orchestrated reveal: start fully broken, sweep to the middle.
+  // Headless screenshots stall CSS transitions, so skip the reveal there.
+  const still = /HeadlessChrome/.test(navigator.userAgent);
+  if (still) document.documentElement.classList.add('still');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches || still;
+  if (reduce){ set(50); }
+  else {
+    set(96);
+    setTimeout(() => {
+      stage.classList.add('reveal'); set(50);
+      setTimeout(() => stage.classList.remove('reveal'), 1500);
+    }, 500);
+  }
+  setTimeout(() => hint.classList.add('gone'), 5000);
+
+  /* Photo framing: ring centre (430,870 in a 901x1600 image) sits at the stage centre. */
+  const img = document.getElementById('photo'), print = document.getElementById('print');
+  // Crop: image x 120..901, y 60..1400. Ring centre (430,870) sits at 50% x, 58% y of the stage.
+  const CX = 430, CY = 870, X0 = 120, X1 = 901, Y0 = 60, Y1 = 1400, RY = 0.58;
+  window.__ringY = RY;
+  function frame(){
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const s = H / 640;
+    const px = W / 2 - (CX - X0) * s, py = H * RY - (CY - Y0) * s;
+    Object.assign(print.style, {left: px + 'px', top: py + 'px', width: (X1 - X0) * s + 'px', height: (Y1 - Y0) * s + 'px'});
+    print.style.setProperty('--ox', (CX - X0) * s + 'px'); print.style.setProperty('--oy', (CY - Y0) * s + 'px');
+    Object.assign(img.style, {width: 901 * s + 'px', height: 1600 * s + 'px', left: -X0 * s - 7 + 'px', top: -Y0 * s - 7 + 'px'});
+    window.__ringPx = 250 * s;
+  }
+  new ResizeObserver(() => { frame(); set(split); }).observe(stage);
+  frame();
+})();
+
+/* ---------- Dock state ---------- */
+(() => {
+  const $ = id => document.getElementById(id);
+  const live = $('live');
+  const draft = $('draft');
+  $('confirmBtn').addEventListener('click', () => {
+    draft.classList.add('confirmed');
+    document.querySelectorAll('[data-draft]').forEach(p => { p.className = 'pill ok'; p.textContent = '✓ Confirmed'; });
+    $('n2').className = 'n done'; $('n3').className = 'n done'; $('n4').className = 'n now';
+    $('buildBtn').disabled = false; $('need').textContent = 'Ready. All four values confirmed.';
+    live.textContent = 'Thickness and groove confirmed. Build CAD is ready.';
+    $('buildBtn').focus();
+  });
+  $('cancelBtn').addEventListener('click', () => {
+    draft.classList.add('cancelled');
+    live.textContent = 'Draft cancelled. Hold the talk button to answer again.';
+  });
+  $('typeBtn').addEventListener('click', () => {
+    const v = prompt('Thickness in mm', '6.0');
+    if (v) live.textContent = 'Typed thickness ' + v + ' mm. Confirm to use it.';
+  });
+  const ptt = $('ptt'), talk = $('talk');
+  const on = () => { ptt.setAttribute('aria-pressed','true'); talk.classList.add('listening'); ptt.querySelector('.lab').textContent = 'Listening'; };
+  const off = () => { if (ptt.getAttribute('aria-pressed') !== 'true') return; ptt.setAttribute('aria-pressed','false'); talk.classList.remove('listening'); ptt.querySelector('.lab').textContent = 'Hold to talk'; draft.classList.remove('cancelled','confirmed'); };
+  ptt.addEventListener('pointerdown', on);
+  ptt.addEventListener('pointerup', off); ptt.addEventListener('pointerleave', off);
+  ptt.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat){ e.preventDefault(); on(); } });
+  ptt.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') off(); });
+  $('autoBtn').addEventListener('click', () => { live.textContent = 'Auto-detected. Card found. 12 points on each edge.'; });
+
+  $('buildBtn').addEventListener('click', () => {
+    const b = $('buildBtn'); b.disabled = true; b.lastChild.textContent = ' Building';
+    const items = [...document.querySelectorAll('#checks li')];
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    items.forEach((li, i) => setTimeout(() => li.classList.add('pass'), reduce ? 0 : 250 * (i + 1)));
+    setTimeout(() => {
+      $('buildCell').classList.add('built'); b.lastChild.textContent = ' Built'; b.classList.add('done');
+      $('n4').className = 'n done';
+      $('buildTag').textContent = 'Built. 5 of 5 checks passed.';
+      live.textContent = 'CAD built. 5 of 5 checks passed. Downloads ready.';
+    }, reduce ? 0 : 1500);
+  });
+
+  const q = new URLSearchParams(location.search).get('state');
+  if (q === 'built'){ $('confirmBtn').click(); $('buildBtn').click(); }
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const canvas = document.getElementById('gl');
+const host = document.getElementById('rebuilt');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }); }
+catch (e) { document.getElementById('viewNote').textContent = '3D view needs WebGL.'; throw e; }
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 1, 2000);
+camera.up.set(0, 0, 1);
+camera.position.set(0, -120, 95);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xC9D2DE, 1.3));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-60, -80, 140); scene.add(key);
+const rim = new THREE.DirectionalLight(0xDDE8FF, 1.0); rim.position.set(80, 90, 40); scene.add(rim);
+
+// soft contact shadow disc
+const sh = document.createElement('canvas'); sh.width = sh.height = 128;
+const g = sh.getContext('2d'); const grd = g.createRadialGradient(64,64,0,64,64,64);
+grd.addColorStop(0,'rgba(43,47,54,.28)'); grd.addColorStop(1,'rgba(43,47,54,0)');
+g.fillStyle = grd; g.fillRect(0,0,128,128);
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(70,70), new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(sh), transparent:true, depthWrite:false }));
+scene.add(shadow);
+
+const group = new THREE.Group(); scene.add(group);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.enablePan = false;
+controls.minDistance = 60; controls.maxDistance = 400;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+controls.autoRotate = !reduce; controls.autoRotateSpeed = 0.8;
+
+const loader = new STLLoader();
+const load = url => new Promise((res, rej) => loader.load(url, res, undefined, rej));
+const yellow = new THREE.MeshPhysicalMaterial({ color:0xF2B705, roughness:.55, metalness:0, clearcoat:.15, clearcoatRoughness:.6 });
+const red = new THREE.MeshPhysicalMaterial({ color:0xE0462F, roughness:.5, metalness:0, clearcoat:.2, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 });
+
+let size = 41;
+Promise.all([load('/api/files/mock-ring.stl'), load('/api/files/mock-missing.stl')]).then(([ring, miss]) => {
+  ring.computeBoundingBox();
+  const bb = ring.boundingBox, c = new THREE.Vector3(); bb.getCenter(c);
+  const s = new THREE.Vector3(); bb.getSize(s); size = Math.max(s.x, s.y);
+  [ring, miss].forEach(geo => { geo.translate(-c.x, -c.y, -c.z); geo.computeVertexNormals(); });
+  group.add(new THREE.Mesh(ring, yellow));
+  const m = new THREE.Mesh(miss, red); m.scale.setScalar(1.004); group.add(m);
+  shadow.position.z = -s.z / 2 - 0.2;
+  fit();
+}).catch(() => { document.getElementById('viewNote').textContent = 'Could not load the ring files.'; });
+
+function fit(){
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.setViewOffset(w, h, 0, -h * ((window.__ringY || .5) - .5), w, h);
+  // match the ring's on-screen size to the ring in the photo (a little larger)
+  const target = Math.max(120, (window.__ringPx || 200) * 1.05);
+  const frac = target / h;
+  const dist = (size / frac) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(dir.multiplyScalar(dist));
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(fit).observe(host);
+fit();
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

@@ -1,5 +1,8 @@
 # The demo must turn a photograph of the broken middle ring and a short spoken exchange into a reconstructed, downloadable STEP/STL model.
 
+> **Scope cut v3 (Sat 19:40):** what we build tonight, in which order, is in [build-plan.md](build-plan.md). It wins over the Scope, Timeline and Demo sections below when they disagree. The rules in this plan still apply.
+
+
 ## What we're building
 
 **GridMend — recover missing geometry from a damaged part.**
@@ -41,10 +44,10 @@ References: [ID-1 dimensions](https://www.iso.org/standard/31432.html), [planar 
 
 | MoSCoW | Deliverable |
 | --- | --- |
-| **Must** | One damaged middle ring; known-scale top/side capture; operator-adjustable target/card outlines; real Nebius interpretation; real SLNG voice answers; spoken profile correction with preview and separate confirmation; dimension confirmation; one axisymmetric ring CAD generator; damaged/restored comparison; actual STEP/STL/JSON downloads; independent file checks; five acceptance cases; actual sponsor evidence; pitch showing the existing substation/catalog foundation and industrial roadmap; recording and submission. |
-| **Should** | Automatic edge detection with manual correction; spoken questions through SLNG TTS; automatic side-profile polygon capture; held-out intact-photo comparison; stable hosted demo if existing deployment is quick. |
+| **Must** | One damaged middle ring; top capture with card; **operator clicks** for card corners and surviving edges; circle fit and restored missing arc; real Nebius interpretation; real SLNG voice answers for thickness/groove with visible proposal and separate confirmation; one axisymmetric ring CAD generator (rectangle + optional inner groove); **missing-segment STL**; actual STEP/STL/JSON downloads; independent file checks; Galtea T4 before/fix/after; actual sponsor evidence; recording and submission. |
+| **Should** | Automatic edge detection with manual correction; spoken questions through SLNG TTS; profile polygon editor with undo; other acceptance cases T1–T5 beyond T4 in Galtea; held-out intact-photo comparison. |
 | **Could** | A second ring size using the same generator; an in-app link to the existing substation model. The substation/catalog story is already required in the pitch. |
-| **Won't** | Printing or fit claims; the full spinner mechanism; hidden joint reconstruction; arbitrary image-to-exact-CAD; generative meshes presented as manufacturing CAD; new model training; cups or plates as a second main path; full substation scene rebuild; SQL database; accounts; idempotency/revision/hash framework; automatic machine control; unmute, telephony, translation; a fourth sponsor integration. |
+| **Won't** | Side-photo calibration; new explorer/catalog UI (energy explorer is frozen as-is); LangChain/Devin CAD loop; Printing or fit claims; the full spinner mechanism; hidden joint reconstruction; arbitrary image-to-exact-CAD; generative meshes presented as manufacturing CAD; new model training; cups or plates as a second main path; full substation scene rebuild; SQL database; accounts; idempotency/revision/hash framework; automatic machine control; unmute, telephony, translation; a fourth sponsor integration. |
 
 Andrii protects scope. No new template, provider or feature after integration freeze. Manual edge correction is an honest supported interaction, not a hidden backstage operation. Loss of a core function is reported as a gap, not reclassified as success.
 
@@ -96,96 +99,9 @@ Sprint issue index and optional board setup: [sprints.md](sprints.md).
 
 ## Data contract
 
-**Ring-demo v2**, replacing the plate contract. No database IDs for photos, auth/revision subsystem or idempotency protocol. The browser holds the current inspection and parameters; files are stored for the demo run. Explicit unknowns and confirmations are retained because they change model geometry.
+**Ring-demo v3**, replacing the plate contract. No database IDs for photos, auth/revision subsystem or idempotency protocol. The browser holds the current inspection and parameters; files are stored for the demo run. Explicit unknowns and confirmations are retained because they change model geometry.
 
-```typescript
-// GridMend ring-demo contract v2. Planning contract, not a running implementation.
-// Every field is required. Unknown values are null; arrays are [] when empty.
-export type Point = [number, number]; // image pixels, top-left origin
-export type Mode = "LIVE" | "REPLAY" | "MOCK";
-export type DimensionName = "outer_diameter" | "inner_diameter" | "thickness";
-export interface Dimension {
-  value_mm: number | null;
-  source: "PHOTO" | "SPOKEN_MEASUREMENT" | "MANUAL_MEASUREMENT" | null;
-  confirmed: boolean;
-}
-export interface Calibration {
-  card_size_mm: [number, number] | null; // known width/height; never inferred from logo
-  size_confirmed: boolean;
-  corners_px: [Point, Point, Point, Point] | null; // map to (0,0),(w,0),(w,h),(0,h); account for card rotation
-  same_plane_confirmed: boolean; // card face and measured feature plane
-}
-export interface InspectContext {
-  top_calibration: Calibration;
-  side_calibration: Calibration | null;
-  top_roi_px: [number, number, number, number] | null; // x,y,width,height
-  reviewed_voice_text: string; // <=2,000 chars; operator-confirmed transcription
-  operator_note: string; // <=1,000 chars; data, not instructions
-}
-export interface Trace {
-  provider: "NEBIUS" | "SLNG";
-  model: string;
-  mode: Mode;
-  latency_ms: number;
-  request_id: string | null;
-}
-export interface InspectResult {
-  status: "NEEDS_INPUT" | "REVIEW" | "UNSUPPORTED";
-  observations: string[];
-  question: string | null;
-  outer_diameter: Dimension;
-  inner_diameter: Dimension;
-  thickness: Dimension;
-  top_overlay_url: string | null; // registered app artifact, not a model-generated URL
-  warnings: string[];
-  trace: Trace;
-}
-export interface VoiceResult {
-  transcript: string; // raw result; operator reviews before use
-  trace: Trace;
-}
-export interface GenerateRequest {
-  outer_diameter: Dimension;
-  inner_diameter: Dimension;
-  thickness: Dimension;
-  profile_rz_mm: Point[] | null; // closed polygon cross-section: radius,z; closing point implicit
-  profile_basis: "OBSERVED" | "SIMPLIFIED_RECTANGLE";
-  profile_confirmed: boolean;
-  purpose: "DEMO_CAD_ONLY";
-}
-export type ProfileFeature = "INNER_GROOVE" | "OUTER_BULGE";
-export interface ProfileEditRequest {
-  accepted: GenerateRequest;
-  reviewed_voice_text: string; // <=2,000 chars; one correction, not confirmation
-}
-export interface ProfileEditResult {
-  feature: ProfileFeature | null;
-  candidate: GenerateRequest | null; // null means clarification required; never auto-confirmed
-  readback: string; // feature, old/new values, units and measurement vs design adjustment
-  question: string | null;
-  limitations: string[]; // preserve with accepted model and include in exported summary
-  trace: Trace;
-}
-export interface CadCheck {
-  name: "SOLID" | "DIMENSIONS" | "PROFILE" | "STEP_REIMPORT" | "STL_MESH";
-  passed: boolean;
-  detail: string;
-}
-export interface GenerateResult {
-  status: "READY";
-  design_id: string;
-  step_url: string;
-  stl_url: string;
-  summary_url: string; // JSON: GenerateRequest + checks + limitations
-  checks: CadCheck[];
-  limitations: string[];
-  physical_fit_verified: false;
-}
-export interface ApiError {
-  error: "INVALID_INPUT" | "NEEDS_INPUT" | "PROVIDER_FAILED" | "TIMEOUT" | "CAD_FAILED";
-  message: string;
-}
-```
+The contract is [contracts/types.ts](../contracts/types.ts) (**v3**). It is not copied here, so it cannot drift. v3 adds operator click points, `RingFit`, `groove`, `missing_arc_deg` and the missing-segment STL.
 
 | API | Input | Output / failure |
 | --- | --- | --- |
@@ -290,22 +206,7 @@ Also exercise one provider timeout, microphone denial, cancel/undo and edited-pr
 
 ## Demo script
 
-**Show the substation application first, the ring reconstruction next, then the industrial roadmap.** Andrii uses existing assets; no new substation UI build. Full wording and judge Q&A: [pitch.md](pitch.md).
-
-| Time | Say / show | Evidence boundary |
-| --- | --- | --- |
-| **0:00–0:35** | Show the existing generic 110 kV substation model and point to an accessory category. “Our application is maintenance of legacy substation equipment, where a replacement accessory or its CAD may be difficult to obtain.” | Label the scene generic and the availability problem a hypothesis unless supported by a real example. |
-| **0:35–0:55** | Hold up the broken middle ring. “This simple specimen lets us demonstrate one essential step: recovering missing geometry from photos and an engineer's answers.” | The ring is a lab proxy. It is not a substation-qualified part. |
-| **0:55–2:40** | Run damaged image + card calibration. Say “The inside has a groove”; show the highlighted cross-section, make one explicit profile correction, preview it and say “Confirm”. Show surviving arcs and the restored segment. | Real Nebius/SLNG calls if working; mark replay/manual corrections openly. |
-| **2:40–3:20** | Rotate the generated ring; show restored geometry and actual STEP/STL downloads. | Show independent export checks and any profile approximation. No printer is available; fit and motion are untested. |
-| **3:20–4:00** | Show a genuine Galtea-discovered failure, the fix and rerun. | If no failure was discovered, report that rather than fabricating a story. |
-| **4:00–4:40** | Return to the catalog: “We already have an illustrative component library and draft manufacturing routes. The next stage connects this reconstruction workflow to one verified industrial accessory.” Show polymer AM, CNC metal and sheet-fabrication candidates. | Library records are authored screening proposals, not approved replacements or implemented reconstruction coverage. |
-| **4:40–5:00** | “Our next validation is one real accessory, a reviewed material/process choice and an independently inspected specimen.” Name the partner/evidence sought. | No invented customer commitment, savings, accuracy or deployment claim. |
-
-Three-minute version: substation application 0:00–0:25; ring photo/voice 0:25–1:25; CAD/download 1:25–2:00; actual failure/fix 2:00–2:30; industrial roadmap and next validation 2:30–3:00.
-
-
-Fallback: after a provider timeout, explicitly switch to a recorded run and show when it was captured. Keep CAD generation live if its engine works. A static CAD file/recording is backup evidence, not proof the current run reconstructed the object. Rehearse twice before submission.
+The full script and judge answers are in [pitch.md](pitch.md) (updated for scope cut v3). Rehearse twice before submission. After a provider timeout, switch openly to a recorded run and show when it was captured.
 
 ## Definition of done
 
