@@ -1,4 +1,4 @@
-# GridMend
+# FIMI (GridMend)
 
 **Photo + engineer voice → evidence-backed replacement CAD.**
 
@@ -6,7 +6,7 @@ HackBarna AI Summit Barcelona 2026 R&D demonstrator for damaged substation acces
 
 ## Current status
 
-Repository starter with a working standalone substation route explorer: revised middle-ring project plan, small TypeScript contract v2, unknown-dimension specimen record and illustrative substation reference assets. Implementation in progress on `feat/api-web`: FastAPI backend, CadQuery ring generator, card-scale circle fit, SLNG/Nebius adapters with visible MOCK mode, React + Three.js UI.
+Photo and video reconstruction with a conversation for measured dimensions, trusted CadQuery reference templates, SLNG/Nebius adapters with visible MOCK mode, and a React + Three.js viewer. The pitch UI places the conversation in the left two-thirds and the uploaded media above the 3D viewer in the right third. The standalone substation route explorer remains available below.
 
 ## Run it
 
@@ -22,21 +22,23 @@ uv run uvicorn api.main:app --port 8000     # open http://127.0.0.1:8000
 Web development with hot reload: `cd web && npm run dev` (proxies `/api` to port 8000).
 Tests: `uv run pytest -q`. Whole path: `scripts/smoke.sh`.
 
-## Video reconstruction on `devin-api`
+## Photo and video reconstruction
 
-Upload the video, then give the final goal and measured dimensions in the chat:
+Upload a photo or video, then give the final goal and measured dimensions in the chat. No reference card is required. Photos accept JPEG, PNG and WebP up to 20 MiB; videos retain the 512 MiB and 180-second limits.
 
 > Build the missing part of this ring with rectangular cross section, outer diameter 40 mm, inner diameter 36 mm and height 9 mm.
 
 The Nebius/LangChain agent treats the **complete intact reference** as an intermediate step. The operator does not need to request it separately. It calls the trusted measurement tool, asks for missing or conflicting values, and waits for **Confirm and build**. Its CadQuery tool then exports and checks the complete STL and STEP, retaining the ring's central hole. Dimensions and confirmation come from the operator; model-generated code is never executed.
 
-Only after these checks does GridMend send the original video, full reference STL, specification and frame manifest to Devin. The existing independent validator and same-session correction loop check the proposed missing material.
+Only after these checks does FIMI send the original photo or video, full reference STL, specification and frame manifest to Devin. The existing independent validator and same-session correction loop check the proposed missing material.
 
-Video reconstruction targets an **approximate hackathon demo**. Both the survivor and visible missing-region silhouettes must reach 70% IoU in at least two clear views. IoU measures silhouette overlap, not reconstruction accuracy or probability. The thresholds are not calibrated guarantees. Mesh integrity, confirmed dimensions, containment, at most 1% sampled overlap and at most 2% uncovered reference volume remain mandatory. Approximation notes are preserved in the validation report; an outstanding input request still prevents acceptance. The complete reference is shown with the proposed missing material highlighted in red.
+Reconstruction targets an **approximate hackathon demo**. Both the survivor and visible missing-region silhouettes must reach 70% IoU in at least two clear video views, or the single photo view for photo jobs. A single photo does not verify depth or hidden fracture surfaces. IoU measures silhouette overlap, not reconstruction accuracy or probability. The thresholds are not calibrated guarantees. Mesh integrity, confirmed dimensions, containment, at most 1% sampled overlap and at most 2% uncovered reference volume remain mandatory. Approximation notes are preserved in the validation report; an outstanding input request still prevents acceptance. The complete reference is shown with the proposed missing material highlighted in red.
 
 When the operator answers a Devin question without changing the specification, GridMend resumes the same session and candidate attempt. A delayed copy of that answered question cannot stop polling while Devin is still working.
 
-Video ingestion performs local decoding and frame extraction. It does not wait for a Nebius image analysis. The reference agent uses text and tools; `NEBIUS_VIDEO_MODEL` overrides its model, otherwise it uses `NEBIUS_TEXT_MODEL` (default `Qwen/Qwen3-235B-A22B-Instruct-2507`). LIVE requires server-side `NEBIUS_API_KEY` and `DEVIN_API_KEY`; `RECONSTRUCTION_MODE=MOCK` builds only the reference and starts no paid session.
+Media ingestion performs local decoding and prepares evidence frames. It does not wait for a Nebius image analysis. The reference agent uses text and tools; `NEBIUS_VIDEO_MODEL` overrides its model, otherwise it uses `NEBIUS_TEXT_MODEL` (default `Qwen/Qwen3-235B-A22B-Instruct-2507`). LIVE requires server-side `NEBIUS_API_KEY` and `DEVIN_API_KEY`; `RECONSTRUCTION_MODE=MOCK` builds only the reference and starts no paid session.
+
+The browser restores its current reconstruction after a reload. Open the app with `?reset=1` to clear that saved session and invalidate its reconstruction; the parameter is removed after use. This does not delete stored server artifacts.
 
 The supported intact templates are rings, cylinders, boxes and open-top truncated cones. “Cup”, “truncated cone” and “frustum” select `open_frustum`: an open top and closed bottom, centred on Z with its base at Z = 0. Bottom/base/basis diameter and top/upper diameter are separate outer measurements. Supply both diameters and height; radial wall thickness and axial bottom thickness each default to **1.5 mm**, as approved design parameters. These defaults are labelled in the readback, UI and provenance and must be confirmed; explicit thickness measurements override them. No thickness is inferred from the video. The complete cup is a revolved cross-section, with a linearly tapered outside and constant radial wall thickness. The validator checks its tapered walls and floor analytically. Computational validation does not establish physical fit.
 
@@ -59,7 +61,7 @@ Preview the broader [energy asset explorer](reference/energy-asset-explorer.html
 
 ## One demo
 
-Photograph the broken middle yellow ring beside a confirmed-size card. Use Nebius interpretation, geometric fitting and SLNG spoken answers to establish its dimensions/profile; generate an intact ring STEP/STL model and highlight the missing section. No printer is available: CAD files and computational checks are the deliverable, with no physical-fit claim.
+Photograph the broken ring and provide its measured dimensions and profile through typed or SLNG-transcribed answers. Confirm the complete reference before reconstruction of the missing material. No card or pixel-to-millimetre calibration is used in this workflow. No printer is available: CAD files and computational checks are the deliverable, with no physical-fit claim.
 
 Primary sponsor targets: **Nebius, SLNG, Galtea**. Norma is outside the revised delivery scope. Sponsor use and eligibility require actual evidence; this repository starter proves neither.
 
@@ -88,7 +90,7 @@ Barcelona CEST: integration freeze **Saturday 19 September 22:05**; stop **23:00
 
 ## Provenance and scope
 
-The reference scene is generic and is not a real utility asset or manufacturing CAD. The old plate fixture/plan are historical only. Current middle-ring dimensions are unset; card size and geometry must be established from evidence. All generated artifacts remain NOT_APPROVED for operational use. No news photos, real station documents or credentials are bundled.
+The reference scene is generic and is not a real utility asset or manufacturing CAD. The old plate fixture/plan are historical only. Current middle-ring dimensions are unset; reference measurements come from the operator and require confirmation. All generated artifacts remain NOT_APPROVED for operational use. No news photos, real station documents or credentials are bundled.
 
 The working name is provisional; no trademark or domain clearance has been performed. Licensing has not been selected. Confirm hackathon reuse rules before incorporating reference assets into the judged build.
 

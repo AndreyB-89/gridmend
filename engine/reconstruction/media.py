@@ -1,16 +1,54 @@
 """Bounded deterministic media decoding. Never interprets filenames as commands."""
 import json
 import math
-import os
 import subprocess
 from pathlib import Path
 import cv2
 import numpy as np
+from engine.fit import FitError, decode_image
 from engine.reconstruction.store import digest
 
 MAX_BYTES = 512 * 1024 * 1024  # includes the project's previously documented 271 MB clip
 MAX_SECONDS = 180
 FRAME_COUNT = 12
+MAX_PHOTO_BYTES = 20 * 1024 * 1024
+
+
+def photo_media_type(path: Path):
+    with path.open('rb') as stream:
+        header = stream.read(12)
+    if header.startswith(b'\xff\xd8\xff'):
+        return 'image/jpeg'
+    if header.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'image/png'
+    if header.startswith(b'RIFF') and header[8:12] == b'WEBP':
+        return 'image/webp'
+    raise ValueError('Please upload a JPEG, PNG or WebP photo.')
+
+
+def inspect_photo(path: Path, folder: Path):
+    size = path.stat().st_size
+    if not 0 < size <= MAX_PHOTO_BYTES:
+        raise ValueError('Photo must be nonempty and at most 20 MiB.')
+    media_type = photo_media_type(path)
+    try:
+        image = decode_image(path.read_bytes())
+    except FitError as exc:
+        raise ValueError(str(exc)) from exc
+    height, width = image.shape[:2]
+    if min(width, height) < 16:
+        raise ValueError('Photo must be at least 16 pixels wide and high.')
+    scale = min(1, 640 / max(width, height))
+    image = cv2.resize(image, (max(1, round(width * scale)), max(1, round(height * scale))))
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / 'frame-00.jpg'
+    if not cv2.imwrite(str(target), image):
+        raise ValueError('Could not prepare the photo for validation.')
+    frame = {'index': 0, 'timestamp_s': 0, 'path': str(target), 'sha256': digest(target),
+             'width': image.shape[1], 'height': image.shape[0],
+             'sharpness': float(cv2.Laplacian(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())}
+    return {'kind': 'photo', 'path': str(path), 'sha256': digest(path), 'size_bytes': size,
+            'media_type': media_type, 'width': width, 'height': height, 'frames': [frame]}
 
 
 def command(args, timeout=30):

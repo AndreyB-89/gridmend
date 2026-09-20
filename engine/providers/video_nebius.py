@@ -253,6 +253,8 @@ def construct_reference(store, job, builder):
         spec = ReferenceSpec.model_validate(job['spec'])
         if job['status'] != 'QUEUED' or job['questions'] or not spec.confirmed:
             raise ValueError('Confirm the complete specification before building.')
+        if job.get('media_kind') == 'photo':
+            return builder(spec, store.revision_dir(job)/'reference', job['revision'], job['video']['sha256'], media_kind='photo')
         return builder(spec, store.revision_dir(job)/'reference', job['revision'], job['video']['sha256'])
 
     if job['mode'] == 'LIVE':

@@ -12,7 +12,7 @@ from cad.reference import build_reference
 from engine.providers.common import ProviderError
 from engine.providers.devin import ARTIFACT_NAMES, Devin
 from engine.providers.video_nebius import construct_reference, dialogue, model
-from engine.reconstruction.media import inspect_video
+from engine.reconstruction.media import inspect_photo, inspect_video
 from engine.reconstruction.specification import empty_spec, questions, required, values
 from engine.reconstruction.store import Store, atomic_json, digest, redact
 from engine.reconstruction.validator import validate
@@ -90,7 +90,7 @@ class Reconstruction:
             if revision != job['revision']:
                 raise ValueError('This reply belongs to an older reference. Reload the current conversation.')
             if job['status'] in ('UPLOADING_VIDEO', 'INGESTING'):
-                raise ValueError('Wait for video decoding to finish before sending a message.')
+                raise ValueError('Wait for the upload to finish decoding before sending a message.')
             old_spec = job['spec']
             old_questions = job['questions']
             remote_wait = job['status'] == 'WAITING_INPUT' and job['session_id'] is not None
@@ -232,9 +232,11 @@ class Reconstruction:
         status = job['status']
         folder = self.store.revision_dir(job)
         if status == 'INGESTING':
-            job['video'] = inspect_video(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
-            self.store.event(job, 'video_decoded', video=job['video'])
-            self.store.say(job, 'Video received. What would you like me to do?')
+            kind = job.get('media_kind', 'video')
+            inspect = inspect_photo if kind == 'photo' else inspect_video
+            job['video'] = inspect(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
+            self.store.event(job, f'{kind}_decoded', video=job['video'])
+            self.store.say(job, f'{kind.capitalize()} received. What would you like me to do?')
             self.store.transition(job, 'AWAITING_INPUT')
             return
         if status == 'QUEUED':
@@ -245,7 +247,8 @@ class Reconstruction:
             if job['mode'] == 'MOCK' and not self.offline_double:
                 self.terminal(job, 'MOCK_REFERENCE_READY', 'MOCK: complete reference checked. No Devin reconstruction or paid session was run.')
                 return
-            self.store.say(job, 'The complete reference passed its checks. It retains the specified hole/cavity. Sending the original video, reference STL and specification to Devin.')
+            kind = job.get('media_kind', 'video')
+            self.store.say(job, f'The complete reference passed its checks. It retains the specified hole/cavity. Sending the original {kind}, reference STL and specification to Devin.')
             job['attempt'] = 1
             self.store.transition(job, 'UPLOADING')
             return
@@ -262,7 +265,8 @@ class Reconstruction:
                     self.store.save_private(job, private)
             prompt = Template((PROMPTS/'devin-initial-v1.txt').read_text()).substitute(
                 job_id=job['job_id'], revision=job['revision'], attempt=job['attempt'],
-                inputs=json.dumps({'user_goal': job['user_goal'], 'confirmed_specification': job['spec'], 'limits': job['limits']}),
+                inputs=json.dumps({'user_goal': job['user_goal'], 'confirmed_specification': job['spec'], 'limits': job['limits'],
+                                   'source_media': {k: v for k, v in job['video'].items() if k not in ('path', 'frames')} | {'kind': job.get('media_kind', 'video')}}),
                 attachments='\n'.join(f'ATTACHMENT:"{url}"' for url in attachments.values()))
             private['initial_prompt'] = prompt
             self.store.save_private(job, private)
@@ -381,7 +385,8 @@ class Reconstruction:
             job['validation'] = report
             if report['accepted']:
                 job['result'] = [self.artifact(job, attempt_folder/name) for name in ['repair_part_aligned.stl', 'summary.json', 'generation.py', 'requirements.txt', 'README.md', 'evidence.json', 'surviving_estimate.stl', 'validator.json']]
-                self.terminal(job, 'ACCEPTED', 'Proposed missing part ready. It passed mesh, reference and 70% sampled-video silhouette checks. Remaining uncertainty is recorded in the validation report. Physical fit has not been verified.')
+                visual = 'single-photo' if job.get('media_kind') == 'photo' else 'sampled-video'
+                self.terminal(job, 'ACCEPTED', f'Proposed missing part ready. It passed mesh, reference and 70% {visual} silhouette checks. Remaining uncertainty is recorded in the validation report. Physical fit has not been verified.')
             else:
                 self.reject(job, report)
 
