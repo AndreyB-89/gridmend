@@ -493,10 +493,6 @@ export default function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
-            <path d="M15 3a12 12 0 0 1 0 24" fill="none" stroke="#FFD21F" strokeWidth="5" />
-            <path d="M15 27A12 12 0 0 1 15 3" fill="none" stroke="#E63B2E" strokeWidth="5" />
-          </svg>
           <h1>FIMI</h1>
         </div>
         <p className="job">Rebuild a broken part from a photo or video</p>

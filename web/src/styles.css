@@ -43,7 +43,6 @@ h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.005em; }
 header.top { display: flex; align-items: center; gap: 20px; padding: 0 24px; background: var(--graphite); color: var(--white); }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand h1 { font-weight: 800; font-size: 24px; letter-spacing: -0.01em; }
-.brand svg { flex: none; }
 .job { margin: 0; color: #b9bfc8; font-size: 17px; padding-left: 20px; border-left: 2px solid var(--graphite-2); }
 .status { margin-left: auto; display: flex; gap: 10px; }
 .live { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 999px; background: var(--graphite-2); font-size: 16px; font-weight: 700; color: #fff; }
