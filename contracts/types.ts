@@ -110,3 +110,29 @@ export interface ApiError {
   error: "INVALID_INPUT" | "NEEDS_INPUT" | "PROVIDER_FAILED" | "TIMEOUT" | "CAD_FAILED";
   message: string;
 }
+
+// Video workflow v1. Dimensions can only come from user messages.
+export type VideoFamily = 'ring' | 'cylinder' | 'box';
+export type VideoFeature = 'outer_diameter' | 'inner_diameter' | 'diameter' | 'height' | 'length' | 'width' | 'wall_thickness' | 'cavity_depth' | 'groove_depth' | 'groove_width';
+export interface SuppliedMeasurement {
+  value_mm: number | null; original_value: number | null; original_unit: string | null;
+  source_text: string | null; message_id: string | null; confirmed: boolean;
+}
+export interface ReferenceSpec {
+  family: VideoFamily | null; cavity: 'solid' | 'through' | 'blind' | null;
+  profile: 'plain' | 'inner_groove' | null;
+  dimensions: Partial<Record<VideoFeature, SuppliedMeasurement>>;
+  units: 'mm'; confirmed: boolean;
+}
+export interface VideoTurn { revision: number; message: string; request_id: string }
+export interface VideoConfirm { revision: number }
+export interface VideoArtifact { name: string; sha256: string; url: string }
+export interface VideoState {
+  job_id: string; revision: number; status: string; mode: Mode; user_goal: string;
+  spec: ReferenceSpec; observations: Record<string, unknown>[]; questions: string[];
+  messages: {role: string; text: string; id?: string; mode?: Mode}[];
+  session_id: string | null; attempt: number; retries: number; max_retries: number;
+  limits: Record<string, unknown>; reference: VideoArtifact[]; result: VideoArtifact[];
+  validation: Record<string, unknown> | null; terminal_reason: string | null;
+  selected_models: Record<string, string | null>;
+}

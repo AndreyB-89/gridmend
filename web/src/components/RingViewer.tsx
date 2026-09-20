@@ -6,10 +6,11 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 interface Props {
   ringUrl: string;
   segmentUrl: string | null;
+  referenceMode?: boolean;
 }
 
 /** Live 3D view of the generated STLs. Full ring in yellow, restored segment in red on top. */
-export function RingViewer({ ringUrl, segmentUrl }: Props) {
+export function RingViewer({ ringUrl, segmentUrl, referenceMode = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +82,9 @@ export function RingViewer({ ringUrl, segmentUrl }: Props) {
         ringGeo.computeVertexNormals();
         const ringMat = new THREE.MeshPhysicalMaterial({
           color: 0xffc400,
+          transparent: referenceMode,
+          opacity: referenceMode ? 0.28 : 1,
+          depthWrite: !referenceMode,
           roughness: 0.55,
           clearcoat: 0.15,
           clearcoatRoughness: 0.6,
@@ -96,7 +100,7 @@ export function RingViewer({ ringUrl, segmentUrl }: Props) {
           segGeo.computeVertexNormals();
           const segMat = new THREE.MeshPhysicalMaterial({ color: 0xe63b2e, roughness: 0.5, clearcoat: 0.2, clearcoatRoughness: 0.5 });
           const seg = new THREE.Mesh(segGeo, segMat);
-          seg.scale.setScalar(1.004);
+          if (!referenceMode) seg.scale.setScalar(1.004);
           scene.add(seg);
           disposables.push(segGeo, segMat);
         }
@@ -141,7 +145,7 @@ export function RingViewer({ ringUrl, segmentUrl }: Props) {
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [ringUrl, segmentUrl]);
+  }, [ringUrl, segmentUrl, referenceMode]);
 
   return (
     <>

@@ -1,0 +1,16 @@
+The independent validator rejected candidate $identifier.
+
+Evaluated artifact: $artifact
+Validator report:
+$report
+
+Correct the candidate using this unchanged report and the original evidence.
+Regenerate repair_part.stl and update the reproducible script and
+summary.json, including changes_from_previous.
+
+Do not modify the validator, its thresholds, or its reference.
+Return candidate_ready for reevaluation, or needs_input with a precise
+request if essential information is unavailable.
+
+This is correction retry $retry; next candidate attempt $attempt, reference revision $revision.
+Upload fresh immutable artifacts and include attempt=$attempt in structured_output and summary.json. Keep the original video and reference hash unchanged. Clear obsolete structured_output while working.

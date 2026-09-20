@@ -131,3 +131,63 @@ class GenerateResult(Strict):
 class ApiError(Strict):
     error: Literal["INVALID_INPUT", "NEEDS_INPUT", "PROVIDER_FAILED", "TIMEOUT", "CAD_FAILED"]
     message: str
+
+# Video workflow v1. Separate from photo-derived proposals.
+VideoFamily = Literal['ring', 'cylinder', 'box']
+VideoFeature = Literal['outer_diameter', 'inner_diameter', 'diameter', 'height', 'length', 'width', 'wall_thickness', 'cavity_depth', 'groove_depth', 'groove_width']
+
+
+class SuppliedMeasurement(Strict):
+    value_mm: Optional[float] = Field(default=None, gt=0, le=2000, allow_inf_nan=False)
+    original_value: Optional[float] = None
+    original_unit: Optional[str] = None
+    source_text: Optional[str] = None
+    message_id: Optional[str] = None
+    confirmed: bool = False
+
+
+class ReferenceSpec(Strict):
+    family: Optional[VideoFamily] = None
+    cavity: Optional[Literal['solid', 'through', 'blind']] = None
+    profile: Optional[Literal['plain', 'inner_groove']] = None
+    dimensions: dict[VideoFeature, SuppliedMeasurement] = Field(default_factory=dict)
+    units: Literal['mm'] = 'mm'
+    confirmed: bool = False
+
+
+class VideoTurn(Strict):
+    revision: int = Field(ge=1)
+    message: str = Field(min_length=1, max_length=2000)
+    request_id: str = Field(pattern=r'^[A-Za-z0-9_-]{8,80}$')
+
+
+class VideoConfirm(Strict):
+    revision: int = Field(ge=1)
+
+
+class VideoArtifact(Strict):
+    name: str
+    sha256: str
+    url: str
+
+
+class VideoState(Strict):
+    job_id: str
+    revision: int
+    status: str
+    mode: Mode
+    user_goal: str
+    spec: ReferenceSpec
+    observations: list[dict]
+    questions: list[str]
+    messages: list[dict]
+    session_id: Optional[str]
+    attempt: int
+    retries: int
+    max_retries: int
+    limits: dict
+    reference: list[VideoArtifact]
+    result: list[VideoArtifact]
+    validation: Optional[dict]
+    terminal_reason: Optional[str]
+    selected_models: dict

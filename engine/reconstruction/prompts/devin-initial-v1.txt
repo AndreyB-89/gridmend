@@ -1,0 +1,28 @@
+GridMend reconstruction protocol v1. Job $job_id, reference revision $revision, candidate attempt $attempt.
+Source: FIMI — cadrage demo et prompt Devin, initial-session prompt; updated for mandatory immutable full reference and 100 correction retries.
+
+Produce ONLY the missing material that completes the damaged object. Exclude the surviving material. Add no assembly clearance, offset or connector. Do not build an interface, repository or PR.
+
+INPUTS
+$inputs
+$attachments
+
+The original video bytes are attached, not just a thumbnail. Download and decode that video in your sandbox. Extract timestamped frames there. In evidence.json record the original video's SHA-256, decoder/version, duration, decoded frame count, sampled timestamps and extracted frame hashes. Attachment access alone is not proof of video understanding.
+
+The provided reference_full.stl is the COMPLETE INTACT object, including its intended central hole/cavity. specification.json defines millimetres, independently supplied measurements, provenance, coordinate frame and reference revision/hash. This reference is mandatory and immutable. Do not rebuild it from guessed video dimensions, modify its scale, or change its geometry. Never modify the validator or thresholds. No physical dimension may come from a familiar object's size or your guess.
+
+WORK
+Inspect the damage and surviving geometry using the original video. Align the observed survivor to the fixed reference by rotation and translation only, never rescaling. Reconstruct missing = intact reference minus observed surviving material. Choose tools and write/run code in your own sandbox only. Do not substitute a largest-angular-gap ring shortcut. Preserve observed boundaries and cross-section. Do not invent hidden features. Distinguish supplied measurements, observations, assumptions and unresolved damage. If necessary information is hidden/ambiguous, return needs_input with the smallest precise request. Do not claim an unresolved reconstruction is successful.
+
+DELIVER in the reference mm coordinate frame (or supply a rigid 4x4 artifact_to_reference transform with determinant +1, unit scale in summary.coordinate_frame):
+- repair_part.stl: only missing material, closed positive solid
+- surviving_estimate.stl: aligned estimate of the actual survivor for checkable set-complement checks (this is evidence, not independent ground truth)
+- generation.py, requirements.txt, README.md: reproducible generator with all parameters, dependencies and run instructions. Our server stores these and NEVER executes them.
+- summary.json, preserving: status (candidate_ready|needs_input), units, supplied_dimensions, observed_geometry, assumptions, coordinate_frame, candidate_dimensions_mm, missing_inputs, changes_from_previous, artifacts. Unavailable artifact entries must be null. Add reference_sha256, reference_revision, attempt, limitations, unresolved_uncertainty.
+- evidence.json: video_decode as above and views array. Each view has frame_index (matching our attached frame manifest), K (3x3 camera intrinsics at sampled frame resolution), R (3x3 proper rotation), t_mm (3-vector) mapping reference coordinates to camera coordinates. Provide at least two well-separated clear views. Calibrate the camera against the fixed reference without rescaling it. Document uncertainty and occlusion. Include limitations and decoded video hash. Render/reopen your export before returning it.
+
+Our validator independently decodes sampled original frames. It compares projected survivor and missing-piece silhouettes with conservative foreground segmentation. Busy backgrounds, hands, hidden boundaries and insufficient views may require clearer video. Camera estimates and survivor meshes you provide are not independent truth. Our check separately reports mesh validity, reference consistency and visual confidence; no physical-fit claim.
+
+Publish every file as a downloadable Devin attachment. Set structured_output to JSON with status, attempt, missing_inputs, artifacts (mapping the exact filenames above to https://api.devin.ai/v1/attachments/{uuid}/{name} download URLs, or null). Do not supply local sandbox paths as downloadable URLs. Set candidate_ready only after all files are uploaded. Clear obsolete structured_output while working. candidate_ready means ready for external validation, never acceptance.
+
+The server controls one initial attempt plus at most 100 same-session correction cycles and stops at first acceptance. If information is missing, wait for input without spending correction cycles.

@@ -1,0 +1,306 @@
+"""OFFLINE provider doubles and explicitly synthetic media. Never sponsor evidence."""
+import json
+import shutil
+import threading
+import time
+from pathlib import Path
+import cv2
+import httpx
+import numpy as np
+import pytest
+import trimesh
+from api.schemas import ReferenceSpec, SuppliedMeasurement
+from cad.reference import build_reference, in_reference
+from engine.providers.common import ProviderError
+from engine.providers.devin import ARTIFACT_NAMES, Devin
+from engine.providers.video_nebius import supplied_edit
+from engine.reconstruction.media import inspect_video
+from engine.reconstruction.service import Reconstruction, TERMINAL
+from engine.reconstruction.specification import empty_spec, questions, required, values
+from engine.reconstruction.store import Store, atomic_json, digest, redact
+from engine.reconstruction.validator import project, validate
+
+
+@pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'MOCK')
+    monkeypatch.setenv('NEBIUS_API_KEY', '')
+    monkeypatch.setenv('DEVIN_API_KEY', 'offline-test-credential')
+    monkeypatch.setenv('DEVIN_MAX_RETRIES', '100')
+    monkeypatch.setenv('DEVIN_MAX_WALL_SECONDS', '14400')
+    monkeypatch.delenv('DEVIN_MAX_ACU', raising=False)
+
+
+def spec_for(family='box', cavity='solid'):
+    d = {'box': dict(length=20, width=16, height=6), 'ring': dict(outer_diameter=40, inner_diameter=30, height=6),
+         'cylinder': dict(diameter=20, height=6)}[family]
+    if cavity != 'solid' and family == 'box': d['wall_thickness'] = 2
+    if cavity != 'solid' and family == 'cylinder': d['inner_diameter'] = 12
+    if cavity == 'blind': d['cavity_depth'] = 4
+    return ReferenceSpec(family=family, cavity='through' if family=='ring' else cavity, profile='plain', confirmed=True,
+        dimensions={k: SuppliedMeasurement(value_mm=v, original_value=v, original_unit='mm', source_text=f'{k} {v} mm', message_id='synthetic', confirmed=True) for k,v in d.items()})
+
+
+def synthetic_video(path, survivor=None):
+    """Plain-background synthetic test clip, not a captured real object."""
+    r = np.diag([1., -1., -1.])
+    view = {'K': [[600.,0,160.],[0,600.,120.],[0,0,1.]], 'R': r.tolist(), 't_mm': [0,0,80.]}
+    image = np.full((240,320,3), 255, np.uint8)
+    if survivor is None:
+        cv2.rectangle(image,(75,55),(150,170),(10,160,210),-1)
+    else:
+        image[project(survivor,view,image.shape[:2])] = (10,160,210)
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*'mp4v'), 10, (320,240))
+    for _ in range(10): writer.write(image)
+    writer.release()
+    return view
+
+
+@pytest.fixture
+def media(tmp_path):
+    survivor = trimesh.creation.box([10,16,6]); survivor.apply_translation([-5,0,3])
+    repair = trimesh.creation.box([10,16,6]); repair.apply_translation([5,0,3])
+    path = tmp_path/'synthetic.mp4'
+    view = synthetic_video(path,survivor)
+    metadata = inspect_video(path,tmp_path/'frames')
+    return metadata, view, repair, survivor
+
+
+class Double:
+    """In-process remote double. All failures deliberately injected as tests."""
+    def __init__(self, media, bad_first=False, always_bad=False):
+        self.media, self.bad_first, self.always_bad = media, bad_first, always_bad
+        self.created, self.messages, self.uploads, self.stops = [], [], [], []
+        self.needs_input = False
+        self.missing_artifact = None
+        self.fail_create = False
+        self.poll_error = False
+    def __call__(self, store, job):
+        self.store, self.job = store, job
+        return self
+    def upload(self,path):
+        self.uploads.append((Path(path).name, digest(Path(path))))
+        return 'https://api.devin.ai/v1/attachments/test/'+Path(path).name
+    def create(self,prompt):
+        self.created.append(prompt)
+        if self.fail_create: raise ProviderError('TIMEOUT','Injected uncertain create')
+        return {'session_id':'test-session','url':'https://app.devin.ai/test'}
+    def recover(self): return 'test-session' if self.created else None
+    def terminate(self): self.stops.append(self.job['session_id'])
+    def message(self,message): self.messages.append(message)
+    def poll(self):
+        if self.poll_error: raise ProviderError('PROVIDER_FAILED','Injected transport failure')
+        return {'status_enum':'working', 'structured_output': {'status':'needs_input' if self.needs_input else 'candidate_ready', 'attempt':self.job['attempt'], 'missing_inputs':['Show the hidden boundary.'] if self.needs_input else [],
+            'artifacts':{n:None if n==self.missing_artifact else 'https://api.devin.ai/v1/attachments/test/'+n for n in ARTIFACT_NAMES}}}
+    def download(self,url,path):
+        name = url.rsplit('/',1)[-1]
+        metadata, view, repair, survivor = self.media
+        folder = self.store.revision_dir(self.job)/'reference'
+        if name == 'repair_part.stl':
+            if self.always_bad or (self.bad_first and self.job['attempt']==1):
+                Path(path).write_bytes(b'DELIBERATELY INVALID TEST ARTIFACT')
+            else: Path(path).write_bytes(repair.export(file_type='stl'))
+        elif name == 'surviving_estimate.stl': Path(path).write_bytes(survivor.export(file_type='stl'))
+        elif name == 'summary.json':
+            data = {'status':'candidate_ready','units':'mm','supplied_dimensions':values(ReferenceSpec.model_validate(self.job['spec'])),
+                'observed_geometry':['SYNTHETIC TEST BOX'], 'assumptions':[], 'coordinate_frame':{'artifact_to_reference':np.eye(4).tolist()},
+                'candidate_dimensions_mm':dict(zip(['x','y','z'],repair.extents)), 'missing_inputs':[], 'changes_from_previous':['test correction'] if self.job['attempt']>1 else [], 'artifacts':{},
+                'reference_sha256':digest(folder/'reference_full.stl'), 'reference_revision':self.job['revision'], 'attempt':self.job['attempt'], 'limitations':['synthetic provider double'], 'unresolved_uncertainty':[]}
+            Path(path).write_text(json.dumps(data))
+        elif name == 'evidence.json':
+            Path(path).write_text(json.dumps({'video_decode':{'sha256':metadata['sha256'],'duration_s':metadata['duration_s'], 'decoder':'OFFLINE DOUBLE', 'decoded_frame_count':10, 'frames':[{'timestamp_s':.1,'sha256':'test'}]},
+                'views':[{**view,'frame_index':0},{**view,'frame_index':8}]}))
+        else:
+            Path(path).write_text('# SYNTHETIC TEST: inert artifact.\nraise RuntimeError("NEVER EXECUTE ON SERVER")\n')
+
+
+def ready_service(tmp_path, media, **options):
+    fake = Double(media, **options)
+    service = Reconstruction(Store(tmp_path/'runs'), provider_factory=fake)
+    job = service.new()
+    job.update(video=media[0], spec=spec_for().model_dump(), status='AWAITING_CONFIRMATION', user_goal='SYNTHETIC: missing box half')
+    job['spec']['confirmed'] = False
+    service.store.save(job)
+    service.confirm(job['job_id'],job['revision'])
+    return service, fake, job['job_id']
+
+
+def run_until(service, job_id, statuses=TERMINAL, max_steps=1200):
+    for _ in range(max_steps):
+        job = service.store.load(job_id)
+        if job['status'] in statuses: return job
+        job['next_poll'] = 0
+        service.store.save(job)
+        service.tick(job_id)
+    raise AssertionError('State machine did not settle: '+str(service.store.load(job_id)['status']))
+
+
+@pytest.mark.parametrize('text', ['Create the missing part of this ring', 'The ring looks like 40 mm', 'ring OD 40', 'ring OD maybe 40 mm', 'ring OD 40 mm or 42 mm'])
+def test_no_unmeasured_dimensions(text):
+    spec, issues = supplied_edit(empty_spec(),text,'message1')
+    assert all(d.value_mm is None for d in spec.dimensions.values())
+    assert questions(spec) or issues
+
+
+def test_measurement_grounding_units_and_confirmation():
+    spec, issues = supplied_edit(empty_spec(),'plain ring outer diameter 4 cm, inner diameter 30 mm, height 0.25 inch','message1')
+    assert not issues and not questions(spec)
+    assert values(spec)=={'outer_diameter':40,'inner_diameter':30,'height':6.35}
+    assert not spec.confirmed and not any(d.confirmed for d in spec.dimensions.values())
+    assert spec.dimensions['height'].message_id=='message1'
+    spec, issues = supplied_edit(spec,'outer diameter 42 mm','message2')
+    assert issues and spec.dimensions['outer_diameter'].value_mm is None
+    spec, issues = supplied_edit(spec,'correct outer diameter to 42 mm','message3')
+    assert not issues and spec.dimensions['outer_diameter'].value_mm==42
+
+
+@pytest.mark.parametrize('family,cavity', [('ring','through'),('cylinder','solid'),('cylinder','through'),('cylinder','blind'),('box','solid'),('box','through'),('box','blind')])
+def test_complete_reference_templates(tmp_path,family,cavity):
+    spec=spec_for(family,cavity)
+    sidecar=build_reference(spec,tmp_path,7,'test-video')
+    assert all(sidecar['checks'].values())
+    assert sidecar['reference_revision']==7
+    assert sidecar['provenance'].startswith('Only independently supplied')
+    if cavity=='through': assert not in_reference([[0,0,3]],spec)[0]
+    if cavity=='blind': assert in_reference([[0,0,1]],spec)[0] and not in_reference([[0,0,4]],spec)[0]
+
+
+def test_reference_rejects_missing_unconfirmed_and_hollow_ambiguity(tmp_path):
+    spec,issues=supplied_edit(empty_spec(),'hollow cylinder diameter 20 mm height 6 mm','m')
+    assert spec.cavity is None and questions(spec)
+    with pytest.raises(ValueError): build_reference(spec,tmp_path,1,'video')
+    spec=spec_for();spec.confirmed=False
+    with pytest.raises(ValueError): build_reference(spec,tmp_path,1,'video')
+
+
+def test_media_real_bytes_and_metadata(media,tmp_path):
+    metadata=media[0]
+    assert len(metadata['frames'])==12 and metadata['duration_s']==1
+    assert all(Path(f['path']).exists() for f in metadata['frames'])
+    bad=tmp_path/'not-video.mp4';bad.write_text('not video')
+    with pytest.raises(ValueError,match='cannot be decoded'): inspect_video(bad,tmp_path/'bad')
+    with bad.open('wb') as f: f.truncate(512*1024*1024+1)
+    with pytest.raises(ValueError,match='512'): inspect_video(bad,tmp_path/'large')
+
+
+def test_full_feedback_path_with_injected_invalid_stl(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media,bad_first=True)
+    job=run_until(service,id)
+    assert job['status']=='ACCEPTED',job.get('validation')
+    assert job['attempt']==2 and job['retries']==1 and len(fake.created)==1 and len(fake.messages)==1
+    assert len(fake.uploads)==4
+    assert ('synthetic.mp4',media[0]['sha256']) in fake.uploads
+    root=service.store.revision_dir(job)
+    report=(root/'attempts/1/validator.json').read_text()
+    assert report in fake.messages[0]
+    assert (root/'attempts/1/repair_part.stl').read_bytes()==b'DELIBERATELY INVALID TEST ARTIFACT'
+    assert (root/'attempts/2/generation.py').exists()
+    assert job['validation']['visual_reconstruction_confidence']=='SUPPORTED_BY_SAMPLED_VIEWS'
+    events=[json.loads(l) for l in (service.store.directory(id)/'events.jsonl').read_text().splitlines()]
+    assert {'reference_built','runtime_prompt','session_created','candidate_fetched','validation','correction'} <= {e['event'] for e in events}
+    assert all('reference_revision' in e and 'retry' in e for e in events)
+    assert next(i for i,e in enumerate(events) if e['event']=='reference_built') < next(i for i,e in enumerate(events) if e['event']=='session_created')
+
+
+def test_early_success_no_correction(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media)
+    job=run_until(service,id)
+    assert job['status']=='ACCEPTED',job['validation']
+    assert job['attempt']==1 and job['retries']==0 and not fake.messages
+
+
+def test_100_retry_boundary_and_restart(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media,always_bad=True)
+    # Cheap double validator here: counter persistence, not mesh performance.
+    failing=lambda f,r,j: {'accepted':False,'checks':[{'name':'INJECTED_TEST_FAILURE','passed':False,'measured':1,'tolerance':0,'units':'mm'}],'attempt':j['attempt'],'alignment':None,'units':'mm'}
+    service.validator=failing
+    run_until(service,id,{'CORRECTION_PENDING'})
+    before=service.store.load(id)
+    assert before['retries']==1
+    service=Reconstruction(service.store,provider_factory=fake,validator=failing)
+    job=run_until(service,id)
+    assert job['status']=='RETRY_EXHAUSTED'
+    assert job['attempt']==101 and job['retries']==100
+    assert len(fake.messages)==100 and len(fake.created)==1
+    assert len(list((service.store.revision_dir(job)/'attempts').iterdir()))==101
+
+
+def test_duplicate_confirmation_and_uncertain_create(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media)
+    fake.fail_create=True
+    revision=service.store.load(id)['revision']
+    service.confirm(id,revision);service.confirm(id,revision)
+    run_until(service,id,{'SESSION_UNCERTAIN'})
+    service=Reconstruction(service.store,provider_factory=fake)
+    job=run_until(service,id)
+    assert job['status']=='ACCEPTED' and len(fake.created)==1
+
+
+def test_stale_input_hides_results_and_preserves_history(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media)
+    old=run_until(service,id)
+    changed=service.turn(id,old['revision'],'correct length to 22 mm','request-change-1')
+    assert changed.revision==old['revision']+1 and not changed.result and not changed.reference
+    assert changed.session_id is None and not changed.spec.confirmed
+    assert (service.store.directory(id)/'revisions'/str(old['revision'])/'attempts/1/repair_part.stl').exists()
+    assert service.turn(id,old['revision'],'correct length to 22 mm','request-change-1').revision==changed.revision
+    with pytest.raises(ValueError):service.confirm(id,old['revision'])
+
+
+def test_wait_for_missing_evidence_does_not_burn_retry(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media)
+    fake.needs_input=True
+    job=run_until(service,id,{'WAITING_INPUT'})
+    for _ in range(5):service.tick(id)
+    assert service.store.load(id)['retries']==0
+    resumed=service.turn(id,job['revision'],'The back boundary is visible near the end.','additional-evidence')
+    assert resumed.status=='RESUME_PENDING' and resumed.session_id=='test-session' and resumed.revision==job['revision']
+    fake.needs_input=False
+    accepted=run_until(service,id)
+    assert accepted['status']=='ACCEPTED' and accepted['retries']==0
+
+
+def test_missing_artifact_routes_to_same_session(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media)
+    fake.missing_artifact='surviving_estimate.stl'
+    job=run_until(service,id,{'CORRECTION_PENDING'})
+    assert job['retries']==1 and not job['result']
+    assert 'surviving_estimate.stl' in job['validation']['checks'][0]['measured']
+    fake.missing_artifact=None
+    assert run_until(service,id)['status']=='ACCEPTED'
+
+
+def test_wall_time_and_provider_errors_are_not_exhaustion(tmp_path,media):
+    service,fake,id=ready_service(tmp_path,media)
+    job=service.store.load(id);job['started_at']=time.time()-20000;service.store.save(job)
+    service.tick(id)
+    assert service.store.load(id)['status']=='TIME_LIMIT' and not fake.created
+    service,fake,id=ready_service(tmp_path/'other',media)
+    run_until(service,id,{'WORKING'});fake.poll_error=True
+    job=run_until(service,id)
+    assert job['status']=='FAILED' and job['retries']==0 and len(fake.created)==1
+
+
+def test_secret_redaction_retains_usage(monkeypatch):
+    secret='test-secret-value-that-must-not-leak'
+    monkeypatch.setenv('NEBIUS_API_KEY',secret)
+    data=redact({'Authorization':'Bearer '+secret,'body':secret+' https://storage.googleapis.com/b/f?X-Goog-Signature=abc',
+                 'image':'data:image/jpeg;base64,YWJj','usage':{'prompt_tokens':12,'completion_tokens':8}})
+    assert secret not in json.dumps(data) and 'Signature=abc' not in json.dumps(data) and 'YWJj' not in json.dumps(data)
+    assert data['usage']['prompt_tokens']==12
+
+
+def test_live_devin_fails_without_mock_fallback(tmp_path,media,monkeypatch):
+    service,fake,id=ready_service(tmp_path,media)
+    job=service.store.load(id)
+    client=httpx.Client(transport=httpx.MockTransport(lambda request:httpx.Response(503,json={'error':'test failure'})))
+    provider=Devin(service.store,job,client=client)
+    with pytest.raises(ProviderError):provider.create('test')
+    assert 'provider_response' in (service.store.directory(id)/'events.jsonl').read_text()
+
+
+@pytest.mark.parametrize('url',['http://localhost/private','https://evil.example/a','https://api.devin.ai/v1/secrets','https://api.devin.ai/v1/attachments/test/name?token=abc'])
+def test_artifact_url_restrictions(tmp_path,media,url):
+    service,fake,id=ready_service(tmp_path,media)
+    p=Devin(service.store,service.store.load(id))
+    with pytest.raises(ValueError):p.download(url,tmp_path/'output')

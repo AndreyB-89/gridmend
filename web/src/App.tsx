@@ -18,6 +18,8 @@ import { RingViewer } from "./components/RingViewer.tsx";
 import { SectionView, type SectionGroove, type SectionVal } from "./components/SectionView.tsx";
 import { Icon, ModePill, SourceChip, StateMark, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
 
+import { useVideo, VideoPreview, VideoDimensions, VideoChat, VideoResult } from "./video.tsx";
+
 type DimKey = "outer_diameter" | "inner_diameter" | "thickness";
 const DIM_KEYS: DimKey[] = ["outer_diameter", "inner_diameter", "thickness"];
 const DIM_LABEL: Record<DimKey, string> = {
@@ -84,6 +86,7 @@ function sameGroove(a: GenerateRequest["groove"], b: GenerateRequest["groove"]) 
 let nextId = 1;
 
 export default function App() {
+  const video = useVideo();
   // ---- global ----
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState(false);
@@ -190,7 +193,7 @@ export default function App() {
   useEffect(() => {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log, inspecting, editing]);
+  }, [log, inspecting, editing, video.job?.messages.length]);
 
   /** Every accepted change goes through here: keeps Undo and clears stale CAD. */
   const applyAccepted = (next: GenerateRequest) => {
@@ -273,6 +276,7 @@ export default function App() {
   };
 
   const newPhoto = (blob: Blob, name: string, demoData: DemoClicks | null) => {
+    void video.clear().catch(e => showError(e.message));
     setPhotoFile(blob);
     setPhotoName(name);
     setSidePhoto(null);
@@ -295,6 +299,11 @@ export default function App() {
 
   const onUpload = (file: File | undefined) => {
     if (!file) return;
+    if (file.type.startsWith("video/") || /\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
+      setGen(null); setPhotoFile(null); setPhotoUrl(null); setLog([]); setTypeOpen(true);
+      void video.upload(file);
+      return;
+    }
     newPhoto(file, file.name || "photo.jpg", null);
   };
 
@@ -394,6 +403,7 @@ export default function App() {
   const pendingDraft = [...log].reverse().find((i): i is Extract<Item, { kind: "draft" }> => i.kind === "draft" && i.status === "pending") ?? null;
 
   const sendEdit = async (text: string, origin: TalkOrigin) => {
+    if (video.active) { await video.send(text); return; }
     setError(null);
     setEditing(true);
     try {
@@ -575,7 +585,7 @@ export default function App() {
           </svg>
           <h1>GridMend</h1>
         </div>
-        <p className="job">Rebuild a broken part from one photo</p>
+        <p className="job">Rebuild a broken part from a photo or video</p>
         <div className="status" aria-label="Provider connections">
           {healthError ? (
             <span className="live mode-offline">
@@ -618,13 +628,13 @@ export default function App() {
         {/* ---------------- LEFT: photo + dimensions ---------------- */}
         <section className="col left" aria-label="Photo and dimensions">
           <div className="panel photo">
-            {!photoUrl ? (
+            {video.active ? <VideoPreview video={video} onUpload={onUpload}/> : !photoUrl ? (
               <div className="photo-empty">
                 <p className="big">Take a top-down photo of the broken part with a bank card next to it.</p>
                 <label className="btn primary file-btn">
                   <Icon name="up" size={22} />
-                  Upload photo
-                  <input type="file" accept="image/*" capture="environment" onChange={(e) => onUpload(e.target.files?.[0])} />
+                  Upload photo or video
+                  <input type="file" accept="image/*,video/*,.mov,.mkv" onChange={(e) => onUpload(e.target.files?.[0])} />
                 </label>
                 <button type="button" className="btn" onClick={() => void useDemoPhoto()}>
                   Use demo photo
@@ -780,14 +790,14 @@ export default function App() {
                 <div className="change-photo">
                   <label className="link file-link">
                     Change photo
-                    <input type="file" accept="image/*" capture="environment" onChange={(e) => onUpload(e.target.files?.[0])} />
+                    <input type="file" accept="image/*,video/*,.mov,.mkv" onChange={(e) => onUpload(e.target.files?.[0])} />
                   </label>
                 </div>
               </>
             )}
           </div>
 
-          <div className="panel dims">
+          {video.active ? <VideoDimensions job={video.job}/> : <div className="panel dims">
             <div className="dims-head">
               <h2>Dimensions</h2>
               <small>{confirmedCount} of 4 confirmed</small>
@@ -886,7 +896,7 @@ export default function App() {
                 Undo last change
               </button>
             )}
-          </div>
+          </div>}
         </section>
 
         {/* ---------------- CENTRE: conversation ---------------- */}
@@ -894,10 +904,11 @@ export default function App() {
           <div className="chat-head">
             <h2>Talk it through</h2>
             <span className="step">
-              Step {step} of 4: <b>{stepText.toLowerCase()}</b>
+              {video.active ? "Video → intact reference → missing material" : <>Step {step} of 4: <b>{stepText.toLowerCase()}</b></>}
             </span>
           </div>
           <div className="thread" ref={threadRef} aria-live="polite">
+            {video.active ? <><VideoChat video={video}/>{log.filter((i): i is Extract<Item, {kind:"me"}> => i.kind === "me" && i.status === "review").map(item => <MeBubble key={item.id} item={item} busy={video.busy} onUse={useTranscript} onDiscard={id => setLog(l => l.filter(i => i.id !== id))}/>)}</> : <>
             <Ai>
               <p>
                 Hello. I rebuild broken parts from one photo. I never guess a size: you confirm every value before I build.
@@ -1043,6 +1054,7 @@ export default function App() {
                 </p>
               </Ai>
             )}
+            </>}
           </div>
 
           <p className="talk-hint">
@@ -1065,11 +1077,11 @@ export default function App() {
                 ref={typeRef}
                 value={typed}
                 maxLength={2000}
-                placeholder="For example: thickness is 6 mm"
+                placeholder={video.active ? "Create the missing part of this ring" : "For example: thickness is 6 mm"}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => e.key === "Escape" && setTypeOpen(false)}
               />
-              <button type="submit" className="btn" disabled={!typed.trim() || editing}>
+              <button type="submit" className="btn" disabled={!typed.trim() || editing || video.busy || (video.active && (!video.job || video.job.status === "INGESTING"))}>
                 Send
               </button>
               <button type="button" className="btn ghost" onClick={() => setTypeOpen(false)}>
@@ -1077,11 +1089,12 @@ export default function App() {
               </button>
             </form>
           )}
-          <TalkBar busy={editing} onError={showError} onTranscript={onTranscript} onTypeInstead={openType} />
+          <TalkBar busy={editing || video.busy} onError={showError} onTranscript={onTranscript} onTypeInstead={openType} />
         </section>
 
         {/* ---------------- RIGHT: 3D + section + build ---------------- */}
         <section className="col right" aria-label="Rebuilt part">
+          {video.active ? <VideoResult video={video}/> : <>
           <div className={`viewer ${gen ? "has-model" : ""}`}>
             <div className="v-top">
               <div>
@@ -1169,6 +1182,7 @@ export default function App() {
               </ul>
             )}
           </div>
+          </>}
         </section>
       </main>
     </div>

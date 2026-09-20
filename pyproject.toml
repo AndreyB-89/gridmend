@@ -15,6 +15,7 @@ dependencies = [
   "opencv-python-headless>=4.9",
   "cadquery>=2.4",
   "trimesh>=4.4",
+  "rtree>=1.4.1",
 ]
 
 [dependency-groups]

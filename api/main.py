@@ -10,6 +10,7 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -40,7 +41,20 @@ MAX_UPLOAD = 10 * 1024 * 1024
 CAD_TIMEOUT_S = 30
 PROVIDER_TIMEOUT_S = 45
 
-app = FastAPI(title="GridMend", version="0.3")
+from api.routes.reconstruction import router as reconstruction_router, service as reconstruction_service
+
+
+@asynccontextmanager
+async def lifespan(app):
+    reconstruction_service.start()
+    try:
+        yield
+    finally:
+        reconstruction_service.close()
+
+
+app = FastAPI(title="GridMend", version="0.4", lifespan=lifespan)
+app.include_router(reconstruction_router)
 
 
 class HttpError(Exception):
@@ -100,6 +114,7 @@ def health():
         "modes": {
             "nebius": "LIVE" if os.getenv("NEBIUS_API_KEY") else "MOCK",
             "slng": "LIVE" if os.getenv("SLNG_API_KEY") else "MOCK",
+            "video": os.getenv("RECONSTRUCTION_MODE") or ("LIVE" if os.getenv("NEBIUS_API_KEY") or os.getenv("DEVIN_API_KEY") else "MOCK"),
         },
     }
 
