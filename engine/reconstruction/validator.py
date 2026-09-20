@@ -15,7 +15,7 @@ from engine.reconstruction.store import digest
 
 TOLERANCES = {'containment_mm': .15, 'max_outside_fraction': .001, 'max_overlap_fraction': .01,
               'max_uncovered_fraction': .02, 'max_reference_volume_fraction': .98,
-              'min_silhouette_iou': .85, 'min_missing_silhouette_iou': .75,
+              'min_silhouette_iou': .70, 'min_missing_silhouette_iou': .70,
               'min_clear_views': 2, 'min_view_separation_s': .15, 'occupancy_samples': 12000,
               'max_faces': 100000, 'rigid_matrix_absolute': 1e-5, 'foreground_lab_distance': 40}
 SUMMARY_FIELDS = ['status', 'units', 'supplied_dimensions', 'observed_geometry', 'assumptions', 'coordinate_frame',
@@ -116,7 +116,8 @@ def validate(folder: Path, reference_folder: Path, job):
     def check(name, category, passed, measured, units, tolerance, detail=''):
         checks.append({'name': name, 'category': category, 'passed': bool(passed), 'measured': measured,
                        'units': units, 'tolerance': tolerance, 'detail': detail})
-    report = {'validator_version': 1, 'job_id': job['job_id'], 'reference_revision': job['revision'],
+    report = {'validator_version': 2, 'validation_profile': 'approximate_demo',
+              'job_id': job['job_id'], 'reference_revision': job['revision'],
               'attempt': job['attempt'], 'units': 'mm', 'thresholds': TOLERANCES, 'checks': checks,
               'alignment': None, 'accepted': False, 'mesh_validity': False, 'reference_consistency': False,
               'visual_reconstruction_confidence': 'UNRESOLVED', 'physical_fit_verified': False}
@@ -138,7 +139,8 @@ def validate(folder: Path, reference_folder: Path, job):
         check('supplied_dimensions_unchanged', 'reference', summary.get('supplied_dimensions') == supplied, summary.get('supplied_dimensions'), 'mm', supplied)
         check('candidate_attempt', 'reference', summary.get('attempt') == job['attempt'], summary.get('attempt'), None, job['attempt'])
         uncertainty = summary.get('unresolved_uncertainty')
-        check('damage_resolved', 'visual', uncertainty == [] and summary.get('missing_inputs') == [], uncertainty, None, [], 'Provider statement alone cannot establish visual confidence.')
+        report['unresolved_uncertainty'] = uncertainty
+        check('damage_documented', 'visual', isinstance(uncertainty, list) and all(isinstance(item, str) for item in uncertainty) and summary.get('missing_inputs') == [], uncertainty, None, 'Documented approximation; no outstanding input request.', 'Approximate demo: uncertainty is retained, not treated as resolved.')
         decode = evidence.get('video_decode', {})
         check('video_decode_report', 'visual', decode.get('sha256') == job['video']['sha256'] and isinstance(decode.get('decoded_frame_count'), int) and decode['decoded_frame_count'] > 0 and bool(decode.get('decoder')) and bool(decode.get('frames')) and abs(float(decode.get('duration_s', -1))-job['video']['duration_s']) < .2,
               decode, None, {'sha256': job['video']['sha256'], 'duration_tolerance_s': .2}, 'Reported sandbox decoding is checked against original media; live API activity must corroborate it.')
@@ -176,13 +178,17 @@ def validate(folder: Path, reference_folder: Path, job):
         check('missing_region_coverage', 'reference', uncovered <= TOLERANCES['max_uncovered_fraction'], uncovered, 'fraction of reference', TOLERANCES['max_uncovered_fraction'], 'Deterministic volume occupancy samples; conditional on survivor estimate.')
         visual_ok, views = visual_checks(reference, repair, survivor, evidence, job['video'], folder)
         report['visual_evidence'] = views
-        check('original_video_silhouettes', 'visual', visual_ok, views, 'IoU', {'survivor': .85, 'missing': .75, 'views': 2})
+        check('original_video_silhouettes', 'visual', visual_ok, views, 'IoU', {
+            'survivor': TOLERANCES['min_silhouette_iou'],
+            'missing': TOLERANCES['min_missing_silhouette_iou'],
+            'views': TOLERANCES['min_clear_views'],
+        })
         report['mesh_validity'] = all(c['passed'] for c in checks if c['category'] == 'mesh')
         report['reference_consistency'] = all(c['passed'] for c in checks if c['category'] == 'reference')
         visual_pass = all(c['passed'] for c in checks if c['category'] == 'visual')
         report['visual_reconstruction_confidence'] = 'SUPPORTED_BY_SAMPLED_VIEWS' if visual_pass else 'UNRESOLVED'
         report['accepted'] = all(c['passed'] for c in checks)
-        report['limitations'] = ['No physical fit verified.', 'Silhouette checks cannot certify hidden surfaces.', 'Provider camera and survivor hypotheses are constrained by sampled original pixels, not independent 3D ground truth.']
+        report['limitations'] = ['Approximate hackathon demo; the 70% silhouette thresholds are not calibrated accuracy guarantees.', 'No physical fit verified.', 'Silhouette checks cannot certify hidden surfaces.', 'Provider camera and survivor hypotheses are constrained by sampled original pixels, not independent 3D ground truth.']
         if report['accepted']:
             repair.export(folder/'repair_part_aligned.stl')
     except Exception as exc:

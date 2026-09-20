@@ -18,7 +18,7 @@ from engine.reconstruction.media import inspect_video
 from engine.reconstruction.service import Reconstruction, TERMINAL
 from engine.reconstruction.specification import empty_spec, questions, required, values
 from engine.reconstruction.store import Store, digest, redact
-from engine.reconstruction.validator import project
+from engine.reconstruction.validator import project, visual_checks
 
 
 @pytest.fixture(autouse=True)
@@ -538,6 +538,39 @@ def test_early_success_no_correction(tmp_path,media):
     assert job['attempt']==1 and job['retries']==0 and not fake.messages
 
 
+@pytest.mark.parametrize(('pixel_offset', 'accepted'), [(12, True), (20, False)])
+def test_demo_silhouettes_allow_approximation_but_reject_large_offsets(tmp_path, media, pixel_offset, accepted):
+    video, view, repair, survivor = media
+    reference = trimesh.util.concatenate([repair, survivor])
+    camera = {**view, 'K': np.asarray(view['K']).copy()}
+    camera['K'][0, 2] += pixel_offset
+    evidence = {'views': [{**camera, 'frame_index': i} for i in (0, 8)]}
+    passed, views = visual_checks(reference, repair, survivor, evidence, video, tmp_path)
+    assert passed is accepted
+    assert len(views) == 2
+    if accepted:
+        assert all(.70 <= result['silhouette_iou'] < .85 for result in views)
+    else:
+        assert all(result['silhouette_iou'] < .70 for result in views)
+
+
+@pytest.mark.parametrize('missing_inputs', [[], ['Show the hidden boundary.']])
+def test_demo_retains_uncertainty_without_accepting_outstanding_input(tmp_path, media, missing_inputs):
+    service, fake, id = ready_service(tmp_path, media)
+    job = run_until(service, id, {'VALIDATING'})
+    path = Path(job['candidate'])/'summary.json'
+    summary = json.loads(path.read_text())
+    summary['unresolved_uncertainty'] = ['Fracture surface approximated from the visible outline.']
+    summary['missing_inputs'] = missing_inputs
+    path.write_text(json.dumps(summary))
+    job = run_until(service, id, {'ACCEPTED', 'CORRECTION_PENDING'})
+    assert job['status'] == ('CORRECTION_PENDING' if missing_inputs else 'ACCEPTED')
+    assert job['validation']['validation_profile'] == 'approximate_demo'
+    assert job['validation']['unresolved_uncertainty'] == summary['unresolved_uncertainty']
+    assert job['validation']['physical_fit_verified'] is False
+    assert job['validation']['mesh_validity'] and job['validation']['reference_consistency']
+
+
 def test_100_retry_boundary_and_restart(tmp_path,media):
     service,fake,id=ready_service(tmp_path,media,always_bad=True)
     # Cheap double validator here: counter persistence, not mesh performance.
@@ -597,6 +630,59 @@ def test_missing_artifact_routes_to_same_session(tmp_path,media):
     assert 'surviving_estimate.stl' in job['validation']['checks'][0]['measured']
     fake.missing_artifact=None
     assert run_until(service,id)['status']=='ACCEPTED'
+
+
+@pytest.mark.parametrize('uncertain_delivery', [False, True])
+def test_resume_ignores_answered_input_while_working_after_restart(tmp_path, media, monkeypatch, uncertain_delivery):
+    service, fake, id = ready_service(tmp_path, media)
+    fake.needs_input = True
+    before = run_until(service, id, {'WAITING_INPUT'})
+    reference_hash = digest(service.store.revision_dir(before)/'reference/reference_full.stl')
+    service.turn(id, before['revision'], 'The back boundary is visible near the end.', 'clarification')
+    if uncertain_delivery:
+        def message(text):
+            fake.messages.append(text)
+            raise ProviderError('TIMEOUT', 'Injected uncertain clarification delivery')
+        monkeypatch.setattr(fake, 'message', message)
+    run_until(service, id, {'WORKING'})
+    service = Reconstruction(service.store, provider_factory=fake)
+    for _ in range(3):
+        job = service.store.load(id)
+        job['next_poll'] = 0
+        service.store.save(job)
+        service.tick(id)
+        assert service.store.load(id)['status'] == 'WORKING'
+        assert service.store.load(id)['questions'] == []
+    fake.needs_input = False
+    accepted = run_until(service, id)
+    assert accepted['status'] == 'ACCEPTED'
+    assert accepted['revision'] == before['revision'] and accepted['session_id'] == before['session_id']
+    assert accepted['attempt'] == before['attempt'] and accepted['retries'] == before['retries']
+    assert digest(service.store.revision_dir(accepted)/'reference/reference_full.stl') == reference_hash
+    assert len(fake.created) == 1 and len(fake.messages) == 1
+    assert 'answered_input' not in accepted
+
+
+@pytest.mark.parametrize(('remote_status', 'question'), [
+    ('working', 'Show the opposite face.'),
+    ('blocked', 'Show the hidden boundary.'),
+])
+def test_resumed_session_can_request_more_input(tmp_path, media, monkeypatch, remote_status, question):
+    service, fake, id = ready_service(tmp_path, media)
+    fake.needs_input = True
+    before = run_until(service, id, {'WAITING_INPUT'})
+    service.turn(id, before['revision'], 'The back boundary is visible near the end.', 'clarification')
+    run_until(service, id, {'WORKING'})
+    original_poll = fake.poll
+    def poll():
+        response = original_poll()
+        response['status_enum'] = remote_status
+        response['structured_output']['missing_inputs'] = [question]
+        return response
+    monkeypatch.setattr(fake, 'poll', poll)
+    waiting = run_until(service, id, {'WAITING_INPUT'})
+    assert waiting['questions'] == [question] and waiting['retries'] == 0
+    assert len(fake.created) == 1 and len(fake.messages) == 1
 
 
 def test_wall_time_and_provider_errors_are_not_exhaustion(tmp_path,media):

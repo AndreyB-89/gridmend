@@ -32,6 +32,10 @@ The Nebius/LangChain agent treats the **complete intact reference** as an interm
 
 Only after these checks does GridMend send the original video, full reference STL, specification and frame manifest to Devin. The existing independent validator and same-session correction loop check the proposed missing material.
 
+Video reconstruction targets an **approximate hackathon demo**. Both the survivor and visible missing-region silhouettes must reach 70% IoU in at least two clear views. IoU measures silhouette overlap, not reconstruction accuracy or probability. The thresholds are not calibrated guarantees. Mesh integrity, confirmed dimensions, containment, at most 1% sampled overlap and at most 2% uncovered reference volume remain mandatory. Approximation notes are preserved in the validation report; an outstanding input request still prevents acceptance. The complete reference is shown with the proposed missing material highlighted in red.
+
+When the operator answers a Devin question without changing the specification, GridMend resumes the same session and candidate attempt. A delayed copy of that answered question cannot stop polling while Devin is still working.
+
 Video ingestion performs local decoding and frame extraction. It does not wait for a Nebius image analysis. The reference agent uses text and tools; `NEBIUS_VIDEO_MODEL` overrides its model, otherwise it uses `NEBIUS_TEXT_MODEL` (default `Qwen/Qwen3-235B-A22B-Instruct-2507`). LIVE requires server-side `NEBIUS_API_KEY` and `DEVIN_API_KEY`; `RECONSTRUCTION_MODE=MOCK` builds only the reference and starts no paid session.
 
 The supported intact templates are rings, cylinders and boxes, with their supported profiles and cavities. Computational validation does not establish physical fit.

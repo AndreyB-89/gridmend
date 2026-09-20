@@ -5,6 +5,9 @@ Validator report:
 $report
 
 Correct the candidate using this unchanged report and the original evidence.
+The target is an approximate hackathon demo. Preserve confirmed dimensions and
+document remaining approximation in summary.unresolved_uncertainty. Recorded
+uncertainty does not by itself prevent submitting a candidate for demo validation.
 Regenerate repair_part.stl and update the reproducible script and
 summary.json, including changes_from_previous.
 
