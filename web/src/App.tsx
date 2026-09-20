@@ -13,6 +13,7 @@ import type {
 } from "./types.ts";
 import { PhotoCanvas, SET_COLORS, SET_LABEL, type ClickSet, type Clicks } from "./components/PhotoPanel.tsx";
 import { TalkBar } from "./components/TalkBar.tsx";
+import { manualEdit } from "./manualEntry.ts";
 import { RingViewer } from "./components/RingViewer.tsx";
 import { SectionView, type SectionGroove, type SectionVal } from "./components/SectionView.tsx";
 import { Icon, ModePill, SourceChip, StateMark, TraceTag, originOf, type Origin } from "./components/Bits.tsx";
@@ -92,6 +93,8 @@ export default function App() {
   const [photoFile, setPhotoFile] = useState<Blob | null>(null);
   const [photoName, setPhotoName] = useState("photo.jpg");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [sidePhoto, setSidePhoto] = useState<{ image: Blob; filename: string } | null>(null);
+  const [sideUrl, setSideUrl] = useState<string | null>(null);
   const [clicks, setClicks] = useState<Clicks>(EMPTY_CLICKS);
   const [history, setHistory] = useState<Clicks[]>([]);
   const [activeSet, setActiveSet] = useState<ClickSet>("corners");
@@ -116,6 +119,8 @@ export default function App() {
   const [editing, setEditing] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const [typed, setTyped] = useState("");
+  const [manual, setManual] = useState<Record<DimKey, string>>({ outer_diameter: "", inner_diameter: "", thickness: "" });
+  const [manualError, setManualError] = useState<Partial<Record<DimKey, string>>>({});
   const [limitations, setLimitations] = useState<string[]>([]);
 
   // ---- generate ----
@@ -164,6 +169,16 @@ export default function App() {
       window.clearInterval(id);
     };
   }, []);
+
+  useEffect(() => {
+    if (!sidePhoto) {
+      setSideUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(sidePhoto.image);
+    setSideUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [sidePhoto]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -260,6 +275,7 @@ export default function App() {
   const newPhoto = (blob: Blob, name: string, demoData: DemoClicks | null) => {
     setPhotoFile(blob);
     setPhotoName(name);
+    setSidePhoto(null);
     setClicks(EMPTY_CLICKS);
     setHistory([]);
     setInspect(null);
@@ -335,7 +351,7 @@ export default function App() {
       operator_note: demo ? "demo photo" : "",
     };
     try {
-      const res = await api.inspect(photoFile, photoName, ctx);
+      const res = await api.inspect(photoFile, photoName, ctx, sidePhoto);
       setInspect(res);
       setGen(null);
       setShowFit(true);
@@ -413,6 +429,22 @@ export default function App() {
     setTyped("");
     setTypeOpen(false);
     void sendEdit(t.slice(0, 2000), "typed");
+  };
+
+  // A number typed into the size table: same draft → Confirm path as a spoken edit.
+  const sendManual = (k: DimKey) => {
+    const shown = { outer_diameter: views.outer_diameter.value, inner_diameter: views.inner_diameter.value, thickness: views.thickness.value };
+    const r = manualEdit(accepted, k, manual[k], shown);
+    if (r.kind === "empty") return;
+    if (r.kind === "error" || r.kind === "same") {
+      setManualError((m) => ({ ...m, [k]: r.kind === "error" ? r.message : "This value is already saved." }));
+      return;
+    }
+    setManualError((m) => ({ ...m, [k]: undefined }));
+    setManual((m) => ({ ...m, [k]: "" }));
+    setLog((l) => l.map((i) => (i.kind === "draft" && i.status === "pending" ? { ...i, status: "cancelled" } : i)));
+    push({ kind: "me", text: `${DIM_LABEL[k]}: ${r.res.candidate![k].value_mm} mm`, origin: "typed", trace: null, status: "sent" });
+    push({ kind: "draft", res: r.res, origin: "typed", base: accepted, status: "pending" });
   };
 
   const openType = () => {
@@ -708,6 +740,37 @@ export default function App() {
                   Card lies flat, next to the part
                 </label>
 
+                <div className="side-photo">
+                  {sidePhoto && sideUrl ? (
+                    <>
+                      <img src={sideUrl} alt="Side photo" />
+                      <span>
+                        <b>Side photo added.</b> The AI uses it to describe the shape. It does not measure sizes.
+                      </span>
+                      <button type="button" className="link" onClick={() => setSidePhoto(null)}>
+                        Remove
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <label className="btn small file-btn">
+                        <Icon name="up" size={16} />
+                        Add a side photo (optional)
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) setSidePhoto({ image: f, filename: f.name || "side.jpg" });
+                          }}
+                        />
+                      </label>
+                      <span className="small-note">Photo from the side, at ring height. It helps the AI see a groove, a step or wear.</span>
+                    </>
+                  )}
+                </div>
+
                 <button type="button" className="btn primary wide" disabled={!clicksReady || inspecting || detecting} onClick={() => void runInspect()}>
                   {inspecting ? "Analysing…" : inspect ? "Analyse again" : "Analyse photo"}
                 </button>
@@ -746,6 +809,45 @@ export default function App() {
                     <button type="button" className="btn small confirm-row" onClick={() => confirmPhotoDims([v.photoKey!])}>
                       Confirm {DIM_LABEL[k].toLowerCase()}
                     </button>
+                  )}
+                  {v.state === "draft" && pendingDraft?.res.candidate && (
+                    <button type="button" className="btn small confirm-row" onClick={() => confirmDraft(pendingDraft)}>
+                      Confirm {DIM_LABEL[k].toLowerCase()}
+                    </button>
+                  )}
+                  <form
+                    className="dim-type"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      sendManual(k);
+                    }}
+                  >
+                    <label className="sr" htmlFor={`m-${k}`}>
+                      Type the {DIM_LABEL[k].toLowerCase()} in millimetres
+                    </label>
+                    <input
+                      id={`m-${k}`}
+                      value={manual[k]}
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="Type mm"
+                      maxLength={12}
+                      aria-invalid={!!manualError[k]}
+                      aria-describedby={manualError[k] ? `me-${k}` : undefined}
+                      onChange={(e) => {
+                        const t = e.target.value;
+                        setManual((m) => ({ ...m, [k]: t }));
+                        if (manualError[k]) setManualError((m) => ({ ...m, [k]: undefined }));
+                      }}
+                    />
+                    <button type="submit" className="btn small" disabled={!manual[k].trim() || editing}>
+                      Set
+                    </button>
+                  </form>
+                  {manualError[k] && (
+                    <p className="dim-err" id={`me-${k}`} role="alert">
+                      {manualError[k]}
+                    </p>
                   )}
                 </div>
               );
@@ -943,6 +1045,10 @@ export default function App() {
             )}
           </div>
 
+          <p className="talk-hint">
+            Say or type one size, for example “thickness is 6 mm”. You can also type a number in the Dimensions table. Nothing is used until you press
+            Confirm.
+          </p>
           {typeOpen && (
             <form
               className="typebox"

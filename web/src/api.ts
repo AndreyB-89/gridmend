@@ -39,12 +39,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const err = body as Partial<ApiError> | null;
     const code = err?.error ?? `HTTP_${res.status}`;
-    let message = err?.message ?? (typeof (body as { detail?: unknown })?.detail === "string"
+    const message = err?.message ?? (typeof (body as { detail?: unknown })?.detail === "string"
       ? String((body as { detail: string }).detail)
       : text.slice(0, 300) || res.statusText);
-    if (res.status === 502 || res.status === 504) {
-      message = `Provider failed / timed out, please retry. ${message}`;
-    }
     throw new ApiFailure(res.status, code, message);
   }
   if (body === null) {
@@ -82,9 +79,10 @@ export const api = {
   },
   health: () => request<Health>("/api/health"),
   demoClicks: () => request<DemoClicks>("/api/demo-clicks"),
-  inspect: (image: Blob, filename: string, context: InspectContext) => {
+  inspect: (image: Blob, filename: string, context: InspectContext, side?: { image: Blob; filename: string } | null) => {
     const fd = new FormData();
     fd.append("top_image", image, filename);
+    if (side) fd.append("side_image", side.image, side.filename); // shape observations only
     fd.append("context", JSON.stringify(context));
     return request<InspectResult>("/api/inspect", { method: "POST", body: fd });
   },
@@ -108,7 +106,8 @@ export const api = {
 };
 
 export function errorMessage(e: unknown): string {
-  if (e instanceof ApiFailure) return `${e.code}: ${e.message}`;
+  // The server writes plain-English messages; the code is for logs, not for the engineer.
+  if (e instanceof ApiFailure) return e.message;
   if (e instanceof Error) return e.message;
   return String(e);
 }

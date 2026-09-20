@@ -145,6 +145,13 @@ async def inspect(top_image: UploadFile = File(...), context: str = Form(...), s
     except FitError as exc:
         raise fail(422, "INVALID_INPUT", str(exc))
 
+    side = None
+    if side_image is not None:  # optional side view: shape observations only, never sizes
+        try:
+            side = decode_image(await read_upload(side_image, "side photo"))
+        except FitError as exc:
+            raise fail(422, "INVALID_INPUT", f"Side photo: {exc}")
+
     warnings: list[str] = []
     question: str | None = None
     fit = None
@@ -168,13 +175,18 @@ async def inspect(top_image: UploadFile = File(...), context: str = Form(...), s
         except FitError as exc:
             question = str(exc)
 
-    # Smaller JPEG for the vision model; the fit already used full resolution.
-    scale = 1280 / max(image.shape[:2])
-    small = cv2.resize(image, None, fx=scale, fy=scale) if scale < 1 else image
-    ok, jpeg = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    # Smaller JPEGs for the vision model; the fit already used full resolution.
+    def small_jpeg(img):
+        scale = 1280 / max(img.shape[:2])
+        small = cv2.resize(img, None, fx=scale, fy=scale) if scale < 1 else img
+        ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        return buf.tobytes() if ok else None
+
+    top_jpeg = small_jpeg(image)
+    side_jpeg = small_jpeg(side) if side is not None else None
     try:
         observations, llm_question, trace = await asyncio.wait_for(
-            asyncio.to_thread(interpret, jpeg.tobytes() if ok else None, ctx, fit), PROVIDER_TIMEOUT_S
+            asyncio.to_thread(interpret, top_jpeg, ctx, fit, side_jpeg), PROVIDER_TIMEOUT_S
         )
     except asyncio.TimeoutError:
         raise fail(504, "TIMEOUT", "The vision model did not answer in time. Please retry.")

@@ -8,7 +8,7 @@ import json
 import re
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from api.schemas import (
     Dimension,
@@ -21,6 +21,8 @@ from api.schemas import (
 )
 from engine.providers import nebius
 from engine.providers.common import nebius_key, nebius_text_model
+from engine.spoken_numbers import parse as parse_numbers
+from engine.spoken_numbers import unsupported_unit
 
 PLAUSIBLE_MM = (1.0, 200.0)
 
@@ -50,6 +52,26 @@ class _Extraction(BaseModel):
     uncertain: bool = False
     question: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalise_values(cls, data):
+        """Models sometimes send values as [6, 7], [{"value": 6}, ...] or {"value": null}. Keep the meaning, drop nulls."""
+        if not isinstance(data, dict):
+            return data
+        v = data.get("values")
+        if v is None:
+            data = {**data, "values": {}}
+        elif isinstance(v, list):
+            merged: dict[str, list] = {}
+            for item in v:
+                for k, x in (item.items() if isinstance(item, dict) else [("value", item)]):
+                    if x is not None:
+                        merged.setdefault(k, []).append(x)
+            data = {**data, "values": {k: xs[0] if len(xs) == 1 else xs for k, xs in merged.items()}}
+        elif isinstance(v, dict):
+            data = {**data, "values": {k: x for k, x in v.items() if x is not None}}
+        return data
+
 
 LABELS = {
     "THICKNESS": "Thickness",
@@ -58,37 +80,24 @@ LABELS = {
     "INNER_GROOVE": "Inner groove",
     "OUTER_BULGE": "Outer bulge",
 }
+MENTION_RE = {
+    "THICKNESS": re.compile(r"\b(thick|thickness|height|tall)\b", re.I),
+    "OUTER_DIAMETER": re.compile(r"\b(outer|outside)\b", re.I),
+    "INNER_DIAMETER": re.compile(r"\b(inner|inside) diameter\b|\bbore\b", re.I),
+    "INNER_GROOVE": re.compile(r"\bgroove\b", re.I),
+}
 DIM_FIELD = {"THICKNESS": "thickness", "OUTER_DIAMETER": "outer_diameter", "INNER_DIAMETER": "inner_diameter"}
 
 
 # ---------------------------------------------------------------- MOCK parser (offline demo only)
 
-_WORD_NUM = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
-    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
-    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-}
-_NUM = r"(\d+(?:[.,]\d+)?|" + "|".join(sorted(_WORD_NUM, key=len, reverse=True)) + r")"
-_UNIT = r"\s*(mm|millimet(?:er|re)s?|cm|centimet(?:er|re)s?)?"
-_NUM_RE = re.compile(r"\b" + _NUM + r"\b" + _UNIT, re.I)
 _HEDGE_RE = re.compile(r"\b(maybe|might|perhaps|about|around|roughly|not sure|haven'?t measured|guess|or)\b", re.I)
 _MEASURED_RE = re.compile(r"\b(measured|caliper|calliper|ruler)\b", re.I)
 
 
-def _num(tok: str) -> float:
-    tok = tok.lower()
-    return float(_WORD_NUM[tok]) if tok in _WORD_NUM else float(tok.replace(",", "."))
-
-
-def _unit(tok: str | None) -> Optional[Literal["mm", "cm"]]:
-    if not tok:
-        return None
-    return "cm" if tok.lower().startswith(("cm", "centi")) else "mm"
-
-
 def _mock_extract(text: str) -> _Extraction:
     low = text.lower()
-    nums = [(_num(m.group(1)), _unit(m.group(2)), m.start()) for m in _NUM_RE.finditer(text)]
+    nums = [(n.value, n.unit, n.start) for n in parse_numbers(text)]
     units = {u for _, u, _ in nums if u}
     unit = units.pop() if len(units) == 1 else None
     uncertain = bool(_HEDGE_RE.search(text))
@@ -181,10 +190,35 @@ def _result(feature, candidate, readback, question, limitations, trace) -> Profi
     )
 
 
+def _ungrounded(text: str, values: dict[str, float | list[float]], unit: Optional[str]) -> Optional[str]:
+    """Every number the model extracted must be a number the engineer said, with the same unit if one was said."""
+    heard = parse_numbers(text)
+    for v in values.values():
+        for x in v if isinstance(v, list) else [v]:
+            match = [n for n in heard if abs(n.value - x) < 1e-6]
+            if not match:
+                return f"{x:g}"
+            if unit and all(n.unit and n.unit != unit for n in match):
+                return f"{x:g} {unit}"
+    return None
+
+
 def propose(req: ProfileEditRequest) -> ProfileEditResult:
     text = req.reviewed_voice_text.strip()
+    if unsupported_unit(text):
+        trace = Trace(provider="LOCAL", model="spoken-number-check", mode="LIVE", latency_ms=0.0, request_id=None)
+        return _result(
+            None, None, "No change. I only accept millimetres or centimetres.",
+            "Please give the size in millimetres, for example 'six point five millimetres'.", [], trace,
+        )
     if nebius_key():
         ex, trace = _live_extract(text)
+        wrong = _ungrounded(text, ex.values, ex.unit)
+        if wrong is not None:
+            return _result(
+                ex.feature, None, f"No change. I could not find {wrong} in what you said.",
+                "Please say the number again, slowly, with the unit.", [], trace,
+            )
     else:
         ex = _mock_extract(text)
         trace = Trace(provider="NEBIUS", model=nebius_text_model(), mode="MOCK", latency_ms=0.0, request_id=None)
@@ -246,5 +280,8 @@ def propose(req: ProfileEditRequest) -> ProfileEditResult:
     if problem:
         return _result(feature, None, f"No change. {problem}", "Please check the number and say it again.", [], trace)
 
+    left_out = [LABELS[f].lower() for f, rx in MENTION_RE.items() if f != feature and rx.search(text)]
+    if left_out:
+        notes.append(f"You also said something about the {' and '.join(left_out)}. I did not save it. Please say it again on its own.")
     readback = " ".join([readback, *notes])
     return _result(feature, candidate, readback, None, [], trace)

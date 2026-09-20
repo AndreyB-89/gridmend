@@ -55,6 +55,8 @@ def test_slng_live_success(monkeypatch):
     assert seen["headers"]["Authorization"] == "Bearer test-key"
     assert seen["files"]["audio"] == ("a.webm", b"abc", "audio/webm")
     assert seen["data"]["language"] == "en" and seen["data"]["numerals"] == "true"
+    # SLNG answers 400 "model latest not found" when smart_format is sent (checked live 19 Sep).
+    assert "smart_format" not in seen["data"] and seen["data"] == slng.STT_FORM
 
 
 def test_slng_live_http_error_is_not_mock(monkeypatch):
@@ -130,3 +132,137 @@ def test_interpret_live_prompt_marks_data(monkeypatch):
     user = seen["messages"][1]["content"]
     assert "<engineer_data>" in user[0]["text"] and "measured by geometry code" in user[0]["text"].lower()
     assert user[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+# --- Nebius chat_json parsing (fake OpenAI client, no network) ---
+
+from types import SimpleNamespace
+
+from pydantic import BaseModel
+
+from engine.providers import nebius
+
+
+class _Out(BaseModel):
+    question: str
+
+
+def _fake_nebius(monkeypatch, replies):
+    calls = []
+
+    def create(**kw):
+        calls.append(kw)
+        text = replies[len(calls) - 1]
+        return SimpleNamespace(id=f"req-{len(calls)}", choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(nebius, "nebius_client", lambda: client)
+    return calls
+
+
+@pytest.mark.parametrize("reply", [
+    '{"question": "How thick?"}',
+    '```json\n{"question": "How thick?"}\n```',
+    'Here is the JSON: {"question": "How thick?"}',
+    '{"question": "How thick?"}\nI hope this helps {not json}.',
+    'Sure.\n```json\n{"question": "How thick?"}\n```\nDone.',
+])
+def test_nebius_chat_json_parses_messy_replies(monkeypatch, reply):
+    calls = _fake_nebius(monkeypatch, [reply])
+    out, trace = nebius.chat_json([{"role": "user", "content": "x"}], _Out, "m")
+    assert out.question == "How thick?"
+    assert trace.mode == "LIVE" and trace.request_id == "req-1" and len(calls) == 1
+
+
+def test_nebius_chat_json_braces_inside_strings(monkeypatch):
+    _fake_nebius(monkeypatch, ['Answer: {"question": "Is it {6} mm?"} end'])
+    out, _ = nebius.chat_json([], _Out, "m")
+    assert out.question == "Is it {6} mm?"
+
+
+def test_nebius_chat_json_retries_once_then_ok(monkeypatch):
+    calls = _fake_nebius(monkeypatch, ["no json here", '{"question": "ok"}'])
+    out, trace = nebius.chat_json([], _Out, "m")
+    assert out.question == "ok" and len(calls) == 2 and trace.request_id == "req-2"
+
+
+def test_nebius_chat_json_invalid_twice_is_error(monkeypatch):
+    calls = _fake_nebius(monkeypatch, ["Sorry, I cannot.", '{"wrong": 1}'])
+    with pytest.raises(ProviderError) as e:
+        nebius.chat_json([], _Out, "m")
+    assert e.value.code == "PROVIDER_FAILED" and len(calls) == 2
+
+
+def test_interpret_live_no_false_engineer_reports(monkeypatch):
+    # Seen live (gemma-3-27b, 19 Sep): geometry numbers labelled "Engineer reports:" when the engineer said nothing.
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+
+    def fake(messages, schema, model):
+        from api.schemas import Trace
+        return schema(observations=[
+            "Visible: the ring is broken.",
+            "Engineer reports: The outer diameter is 41.4 mm, as measured by geometry code.",
+            "Engineer reports: the ring is made of steel.",
+        ], question="How thick?"), Trace(provider="NEBIUS", model=model, mode="LIVE", latency_ms=1.0, request_id="r")
+
+    monkeypatch.setattr(interp.nebius, "chat_json", fake)
+    obs, _, _ = interp.interpret(b"jpg", _ctx(""), FIT)
+    assert obs == ["Visible: the ring is broken.", "Measured: The outer diameter is 41.4 mm, as measured by geometry code."]
+    obs, _, _ = interp.interpret(b"jpg", _ctx("it is steel"), FIT)
+    assert "Engineer reports: the ring is made of steel." in obs
+
+
+# --- side photo: a second image for observations only (no sizes from it)
+
+def _capture(monkeypatch, observations):
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+    seen = {}
+
+    def fake(messages, schema, model):
+        from api.schemas import Trace
+        seen["messages"] = messages
+        return schema(observations=observations, question="How thick?"), Trace(
+            provider="NEBIUS", model=model, mode="LIVE", latency_ms=1.0, request_id="r")
+
+    monkeypatch.setattr(interp.nebius, "chat_json", fake)
+    return seen
+
+
+def test_interpret_live_sends_side_photo_as_second_image(monkeypatch):
+    seen = _capture(monkeypatch, ["Visible (side photo): a groove runs around the inside wall."])
+    obs, _, _ = interp.interpret(b"top", _ctx(), FIT, side_jpeg=b"side")
+    user = seen["messages"][1]["content"]
+    images = [p for p in user if p["type"] == "image_url"]
+    assert len(images) == 2
+    assert "side" in user[0]["text"].lower() and "photo 2" in user[0]["text"].lower()
+    assert "side photo" in seen["messages"][0]["content"].lower()
+    assert obs == ["Visible (side photo): a groove runs around the inside wall."]
+
+
+def test_interpret_live_top_only_has_one_image(monkeypatch):
+    seen = _capture(monkeypatch, ["Visible: a broken ring."])
+    interp.interpret(b"top", _ctx(), FIT)
+    user = seen["messages"][1]["content"]
+    assert len([p for p in user if p["type"] == "image_url"]) == 1
+    assert "photo 2" not in user[0]["text"].lower()
+
+
+def test_interpret_live_drops_sizes_guessed_from_photos(monkeypatch):
+    _capture(monkeypatch, [
+        "Visible (side photo): the ring is about 6 mm thick.",
+        "Visible: the ring looks 2.5 cm wide.",
+        "Visible (side photo): the top edge has a small chamfer.",
+        "Measured: outer diameter 42.0 mm (geometry code).",
+    ])
+    obs, _, _ = interp.interpret(b"top", _ctx(), FIT, side_jpeg=b"side")
+    assert obs == [
+        "Visible (side photo): the top edge has a small chamfer.",
+        "Measured: outer diameter 42.0 mm (geometry code).",
+    ]
+
+
+def test_interpret_mock_mentions_side_photo(monkeypatch):
+    monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
+    obs, _, trace = interp.interpret(None, _ctx(), FIT, side_jpeg=b"side")
+    assert trace.mode == "MOCK"
+    assert any(o.startswith("Visible (side photo):") for o in obs)

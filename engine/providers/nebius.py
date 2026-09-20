@@ -39,7 +39,7 @@ def chat_json(messages: list[dict[str, Any]], schema: type[M], model: str) -> tu
         request_id = getattr(resp, "id", None) or request_id
         try:
             content = resp.choices[0].message.content or ""
-            parsed = schema.model_validate(json.loads(_strip_fences(content)))
+            parsed = schema.model_validate(_first_json_object(content))
         except (json.JSONDecodeError, ValidationError, IndexError, AttributeError, TypeError) as exc:
             last_problem = type(exc).__name__
             log.warning("Nebius returned invalid JSON (attempt %d): %s", attempt + 1, last_problem)
@@ -49,13 +49,19 @@ def chat_json(messages: list[dict[str, Any]], schema: type[M], model: str) -> tu
     raise ProviderError("PROVIDER_FAILED", f"Nebius returned invalid JSON twice ({last_problem}).")
 
 
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:]
-    return text.strip()
+def _first_json_object(text: str) -> dict[str, Any]:
+    """Return the first top-level JSON object in `text`. Models may add prose or ``` fences around it."""
+    decoder = json.JSONDecoder()
+    start = text.find("{")
+    while start != -1:
+        try:
+            obj, _ = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            obj = None
+        if isinstance(obj, dict):
+            return obj
+        start = text.find("{", start + 1)
+    raise json.JSONDecodeError("No JSON object found", text, 0)
 
 
 def list_models() -> list[str]:

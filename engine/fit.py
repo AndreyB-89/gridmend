@@ -116,6 +116,9 @@ def decode_image(data: bytes) -> np.ndarray:
     """
     if not data:
         raise FitError("The photo is empty. Please upload the photo again.")
+    if data[4:12] in (b"ftypheic", b"ftypheix", b"ftyphevc", b"ftypmif1", b"ftypmsf1"):
+        raise FitError("This is an iPhone HEIC photo. Please use JPEG: on the iPhone choose "
+                       "Settings > Camera > Formats > Most Compatible, or export the photo as JPEG.")
     arr = np.frombuffer(data, np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
     if img is None or img.size == 0:
@@ -345,7 +348,7 @@ def _draw_overlay(img, H, corners_px, outer_px, inner_px, oc, ic, start, end) ->
 DETECT_MAX_SIDE = 2000  # detection works on a downscaled copy
 # HSV ranges (OpenCV: H 0..180). Add a new ring colour here.
 CARD_HSV_RANGES = [((95, 20, 60), (135, 255, 255))]  # blue card
-RING_HSV_RANGES = {"yellow": ((15, 80, 120), (40, 255, 255))}
+RING_HSV_RANGES = {"yellow": ((17, 80, 120), (40, 255, 255))}  # H 15-16 is the brown PLA rings
 RING_COLOR = "yellow"
 AUTO_POINTS = 12
 END_TRIM_DEG = 8.0
@@ -439,48 +442,171 @@ def _detect_card(hsv: np.ndarray) -> np.ndarray | None:
     return quad
 
 
-def _ring_candidate(contour: np.ndarray, shape) -> dict | None:
-    """Check if a contour looks like an annulus arc. Returns edge points or None."""
-    p = contour.reshape(-1, 2).astype(np.float64)
-    h, w = shape
-    if p[:, 0].min() <= 1 or p[:, 1].min() <= 1 or p[:, 0].max() >= w - 2 or p[:, 1].max() >= h - 2:
-        return None  # cut by the photo border
-    hull = cv2.convexHull(p.astype(np.float32)).reshape(-1, 2).astype(np.float64)
-    if len(hull) < 5:
+# Ring detection. The colour mask only gives *seeds*: in a photo taken at an
+# angle the ring is an ellipse, the near outer wall is part of the yellow
+# outline, and the inner wall hides the real inner edge (the hole in the mask
+# is the wall *foot*). The top face is bounded by two circles in one plane with
+# one centre, so we search, in a locally rectified frame, for the centre where
+# an outer and an inner circle both have edge support all around.
+
+MIN_TILT_RATIO = 0.45  # ring outline minor/major axis below this = side view
+EDGE_GRAD_TOL_DEG = 25.0  # edge gradient must point along the radius
+COVER_BINS = 72  # 5 degree bins
+MAX_EDGE_POINTS = 5000
+
+
+def _edge_points(small_bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Colour-aware edges: yellow on beige has almost no contrast in grey, so use L and b of Lab.
+
+    Returns (points xy, unit gradient xy) for every edge pixel.
+    """
+    lab = cv2.cvtColor(cv2.GaussianBlur(small_bgr, (5, 5), 0), cv2.COLOR_BGR2LAB)
+    L, b = lab[:, :, 0], lab[:, :, 2]
+    edges = cv2.Canny(L, 30, 70, L2gradient=True) | cv2.Canny(b, 12, 30, L2gradient=True)
+    gx = np.zeros(L.shape, np.float32)
+    gy = np.zeros(L.shape, np.float32)
+    best = np.zeros(L.shape, np.float32)
+    for ch, w in ((L, 1.0), (b, 2.0)):
+        sx = cv2.Sobel(ch, cv2.CV_32F, 1, 0, ksize=3)
+        sy = cv2.Sobel(ch, cv2.CV_32F, 0, 1, ksize=3)
+        mag = w * np.hypot(sx, sy)
+        sel = mag > best
+        gx[sel], gy[sel], best[sel] = sx[sel], sy[sel], mag[sel]
+    ys, xs = np.nonzero(edges)
+    g = np.column_stack([gx[ys, xs], gy[ys, xs]]).astype(np.float64)
+    g /= np.maximum(np.linalg.norm(g, axis=1, keepdims=True), 1e-9)
+    return np.column_stack([xs, ys]).astype(np.float64), g
+
+
+def _rectifier(H: np.ndarray | None, at: np.ndarray, ellipse) -> np.ndarray:
+    """2x2 matrix (det 1) that makes a circle on the table round again near `at`.
+
+    With a card: the local Jacobian of the card homography (shape only, the
+    card size does not matter here). Without a card: from the outline ellipse.
+    """
+    if H is not None:
+        x, y = at
+        w = H[2, 0] * x + H[2, 1] * y + H[2, 2]
+        u = (H[0, 0] * x + H[0, 1] * y + H[0, 2]) / w
+        v = (H[1, 0] * x + H[1, 1] * y + H[1, 2]) / w
+        J = np.array([[H[0, 0] - u * H[2, 0], H[0, 1] - u * H[2, 1]],
+                      [H[1, 0] - v * H[2, 0], H[1, 1] - v * H[2, 1]]]) / w
+    elif ellipse is not None:
+        (_, _), (ew, eh), ang = ellipse
+        t = math.radians(ang)
+        R = np.array([[math.cos(t), math.sin(t)], [-math.sin(t), math.cos(t)]])  # image -> ellipse axes
+        J = np.diag([1 / max(ew, 1e-9), 1 / max(eh, 1e-9)]) @ R
+    else:
+        return np.eye(2)
+    d = abs(np.linalg.det(J))
+    return J / math.sqrt(d) if d > 1e-12 else np.eye(2)
+
+
+def _coverage(q: np.ndarray, g: np.ndarray, c: np.ndarray, width: float, nbins: int) -> tuple[np.ndarray, np.ndarray]:
+    """Per radius bin: (sectors with a radial edge point, sharpness).
+
+    Sharpness counts edge points per sector (capped, so one long straight edge
+    cannot win). A true circle around `c` puts its points in one or two bins;
+    a circle around the wrong centre, or the mixed outline of top and foot, is
+    smeared over many bins and scores lower.
+    """
+    d = q - c
+    r = np.hypot(d[:, 0], d[:, 1])
+    radial = np.abs((d * g).sum(1)) > math.cos(math.radians(EDGE_GRAD_TOL_DEG)) * np.maximum(r, 1e-9)
+    k = (r / width).astype(np.int64)
+    ok = radial & (k < nbins)
+    a = ((np.arctan2(d[ok, 1], d[ok, 0]) + math.pi) / (2 * math.pi) * COVER_BINS).astype(np.int64) % COVER_BINS
+    cnt = np.zeros((nbins + 1, COVER_BINS), np.int32)
+    np.add.at(cnt, (k[ok], a), 1)
+    pair = cnt[:-1] + cnt[1:]  # an edge may fall in either of two neighbour bins
+    return (pair > 0).sum(1), np.minimum(pair, 6).sum(1)
+
+
+def _pick_circles(cov: np.ndarray, width: float, rmax: float) -> tuple[int, int] | None:
+    """Outer = the largest well-covered radius. Inner = the smallest well-covered radius inside it.
+
+    The bore is the innermost circle seen all around; a step on the top face is
+    also a full circle but larger; the wall foot is only seen on one side.
+    """
+    lo = int(0.2 * rmax / width)
+    if lo >= len(cov) or cov[lo:].max() < COVER_BINS // 4:
         return None
-    cx, cy, R = _kasa(hull)
-    for _ in range(3):
-        r = np.hypot(p[:, 0] - cx, p[:, 1] - cy)
-        outer = p[np.abs(r - R) < 0.03 * R]
-        if len(outer) < 20:
-            return None
-        cx, cy, R = _kasa(outer)
-    r = np.hypot(outer[:, 0] - cx, outer[:, 1] - cy)
-    if np.sqrt(np.mean((r - R) ** 2)) / R > 0.01:
+    top = cov[lo:].max()
+    good_o = np.nonzero(cov >= 0.75 * top)[0]
+    good_o = good_o[good_o >= lo]
+    ko = int(good_o.max())
+    band = np.arange(int(0.3 * ko), int(0.93 * ko))
+    if len(band) == 0:
+        return ko, -1
+    need = max(COVER_BINS // 4, 0.7 * cov[ko])
+    good_i = band[cov[band] >= need]
+    return ko, (int(good_i.min()) if len(good_i) else -1)
+
+
+def _search_ring(pts, grads, seed: np.ndarray, A: np.ndarray, rmax: float) -> dict | None:
+    """Grid search of the top-face centre around `seed`. Works in the rectified frame q = A (p - seed)."""
+    q = (pts - seed) @ A.T
+    gq = grads @ np.linalg.inv(A)  # gradients are covectors
+    gq /= np.maximum(np.linalg.norm(gq, axis=1, keepdims=True), 1e-9)
+    near = np.hypot(q[:, 0], q[:, 1]) < 1.35 * rmax
+    q, gq = q[near], gq[near]
+    if len(q) < 40:
         return None
-    # Inner edge: the most common radius well inside the outer edge.
-    rr = np.hypot(p[:, 0] - cx, p[:, 1] - cy) / R
-    hist, edges = np.histogram(rr, bins=32, range=(0.3, 0.94))
-    kb = int(np.argmax(hist))
-    peak = (edges[kb] + edges[kb + 1]) / 2
-    inner = p[np.abs(rr - peak) < 0.04]
-    if len(inner) < 20:
+    if len(q) > MAX_EDGE_POINTS:
+        idx = np.random.default_rng(0).choice(len(q), MAX_EDGE_POINTS, replace=False)
+        q, gq = q[idx], gq[idx]
+    width = max(1.0, 0.007 * rmax)
+    nbins = int(1.3 * rmax / width) + 2
+
+    def score_at(c):
+        cov, sharp = _coverage(q, gq, c, width, nbins)
+        pick = _pick_circles(cov, width, rmax)
+        if pick is None:
+            return -1, None
+        ko, ki = pick
+        return sharp[ko] + (sharp[ki] if ki >= 0 else 0), (ko, ki, cov)
+
+    best = (-1, None, None)
+    step = rmax / 16
+    for dx in np.arange(-0.35, 0.3501, 1 / 16) * rmax:
+        for dy in np.arange(-0.35, 0.3501, 1 / 16) * rmax:
+            c = np.array([dx, dy])
+            s, info = score_at(c)
+            if s > best[0]:
+                best = (s, info, c)
+    if best[1] is None:
         return None
-    icx, icy, iR = _kasa(inner)
-    ir = np.hypot(p[:, 0] - icx, p[:, 1] - icy)
-    inner = p[np.abs(ir - iR) < 0.025 * iR]
-    if len(inner) < 20 or not (0.3 * R < iR < 0.95 * R):
+    for _ in range(2):  # refine
+        step /= 4
+        c0 = best[2]
+        for dx in np.arange(-2, 2.01) * step:
+            for dy in np.arange(-2, 2.01) * step:
+                c = c0 + (dx, dy)
+                s, info = score_at(c)
+                if s > best[0]:
+                    best = (s, info, c)
+    _, (ko, ki, cov), c = best
+
+    def inliers(k):
+        d = q - c
+        r = np.hypot(d[:, 0], d[:, 1])
+        radial = np.abs((d * gq).sum(1)) > math.cos(math.radians(EDGE_GRAD_TOL_DEG)) * np.maximum(r, 1e-9)
+        return q[radial & (np.abs(r - (k + 0.5) * width) <= 1.5 * width)]
+
+    out_q = inliers(ko)
+    if len(out_q) < 20:
         return None
-    ir = np.hypot(inner[:, 0] - icx, inner[:, 1] - icy)
-    if np.sqrt(np.mean((ir - iR) ** 2)) / iR > 0.025 or math.hypot(icx - cx, icy - cy) > 0.1 * R:
-        return None
-    ang_o = np.mod(np.degrees(np.arctan2(-(outer[:, 1] - cy), outer[:, 0] - cx)), 360)
-    ang_i = np.mod(np.degrees(np.arctan2(-(inner[:, 1] - cy), inner[:, 0] - cx)), 360)
-    s_o, _, span_o = _covered_arc(ang_o)
-    s_i, _, span_i = _covered_arc(ang_i)
-    if min(span_o, span_i) < 60:
-        return None  # a small fragment, not the main arc
-    return {"outer": (outer, ang_o, s_o, span_o), "inner": (inner, ang_i, s_i, span_i), "R": R}
+    ocx, ocy, oR = _kasa(out_q)
+    res = {"centre_q": np.array([ocx, ocy]), "R": oR, "cov_o": int(cov[ko]), "cov_i": 0, "outer_q": out_q, "inner_q": None}
+    if ki >= 0:
+        in_q = inliers(ki)
+        if len(in_q) >= 20:
+            icx, icy, iR = _kasa(in_q)
+            if math.hypot(icx - ocx, icy - ocy) < 0.1 * oR and 0.25 * oR < iR < 0.95 * oR:
+                res.update(inner_q=in_q, cov_i=int(cov[ki]))
+    Ainv = np.linalg.inv(A)
+    res["to_px"] = lambda qq: qq @ Ainv.T + seed
+    return res
 
 
 def _spread_points(pts, ang, start, span, n) -> np.ndarray:
@@ -494,6 +620,58 @@ def _spread_points(pts, ang, start, span, n) -> np.ndarray:
         if not out or np.min(np.hypot(*(np.array(out) - pts[i]).T)) > 1.0:
             out.append(pts[i])
     return np.array(out)
+
+
+def _edge_sample(q: np.ndarray, centre_q: np.ndarray, to_px) -> np.ndarray:
+    ang = np.mod(np.degrees(np.arctan2(-(q[:, 1] - centre_q[1]), q[:, 0] - centre_q[0])), 360)
+    start, _, span = _covered_arc(ang)
+    return to_px(_spread_points(q, ang, start, span, AUTO_POINTS))
+
+
+def _seeds(mask: np.ndarray, H: np.ndarray | None) -> tuple[list, bool, bool]:
+    """Seeds (centre px, rectifier, search radius) from the colour mask.
+
+    Every hole is a seed (so touching rings split), and every blob is a seed
+    (a broken 'C' has no hole). Returns (seeds, cut_by_border, side_view).
+    """
+    h, w = mask.shape
+    cs, hier = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    min_area = 0.001 * h * w
+    seeds, cut, side = [], False, False
+    for idx, c in enumerate(cs):
+        if hier[0][idx][3] != -1:
+            continue
+        area = cv2.contourArea(c)
+        if area < min_area or len(c) < 5:
+            continue
+        x, y, bw, bh = cv2.boundingRect(c)
+        if x <= 1 or y <= 1 or x + bw >= w - 1 or y + bh >= h - 1:
+            cut = True
+            continue
+        hull = cv2.convexHull(c)
+        ell = cv2.fitEllipse(hull) if len(hull) >= 5 else cv2.fitEllipse(c)
+        ratio = min(ell[1]) / max(max(ell[1]), 1e-9)
+        holes = [cs[j] for j in range(len(cs)) if hier[0][j][3] == idx and cv2.contourArea(cs[j]) > 0.01 * area]
+        if ratio < MIN_TILT_RATIO and len(holes) <= 1:
+            side = True
+            continue
+        centre = np.array(ell[0], np.float64)
+        A = _rectifier(H, centre, ell)
+        # Search radius in the rectified frame: the rectified outline size.
+        hq = (hull.reshape(-1, 2) - centre) @ A.T
+        rmax = 1.1 * float(np.max(np.hypot(hq[:, 0], hq[:, 1])))
+        seeds.append((centre, A, rmax))
+        for hole in holes:
+            if len(hole) < 5:
+                continue
+            he = cv2.fitEllipse(hole)
+            hc = np.array(he[0], np.float64)
+            Ah = _rectifier(H, hc, he if H is None else None)
+            qq = (hole.reshape(-1, 2) - hc) @ Ah.T
+            r_hole = float(np.max(np.hypot(qq[:, 0], qq[:, 1])))
+            if len(holes) > 1 or hier[0][idx][2] != -1:
+                seeds.append((hc, Ah, min(3.2 * r_hole, rmax)))
+    return seeds, cut, side
 
 
 def auto_detect(image_bgr: np.ndarray) -> AutoDetect:
@@ -514,36 +692,77 @@ def auto_detect(image_bgr: np.ndarray) -> AutoDetect:
 
     quad = _detect_card(hsv)
     corners = full(quad) if quad is not None else None
-    if corners is None:
-        warnings.append("Card not found: click its 4 corners.")
+    H = None
+    if quad is not None:
+        try:  # ID-1 proportions: used for the shape of circles only, never for sizes
+            H, _ = _card_homography([tuple(p) for p in quad], (85.6, 53.98))
+        except FitError:
+            H = None
 
     mask = _hsv_mask(hsv, [RING_HSV_RANGES[RING_COLOR]])
     k = max(3, int(round(max(hsv.shape[:2]) / 400)) | 1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((2 * k + 1, 2 * k + 1), np.uint8))
-    cs, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    min_area = 0.001 * hsv.shape[0] * hsv.shape[1]
-    best, best_area = None, 0.0
-    for c in cs:
-        a = cv2.contourArea(c)
-        if a < min_area or a <= best_area:
-            continue
-        cand = _ring_candidate(c, hsv.shape[:2])
-        if cand is not None:
-            best, best_area = cand, a
+    seeds, cut, side = _seeds(mask, H)
+
+    rings: list[dict] = []
+    if seeds:
+        pts, grads = _edge_points(small)
+        near = cv2.dilate(mask, np.ones((2 * k + 1, 2 * k + 1), np.uint8))[pts[:, 1].astype(int), pts[:, 0].astype(int)] > 0
+        pts, grads = pts[near], grads[near]
+        for centre, A, rmax in seeds:
+            r = _search_ring(pts, grads, centre, A, rmax)
+            if r is None:
+                continue
+            # Too little of a circle is not a ring: side views and pieces in the hand give short arcs.
+            if r["inner_q"] is None and r["cov_o"] < 0.75 * COVER_BINS:
+                continue
+            if r["cov_o"] < 110 / 360 * COVER_BINS or (r["inner_q"] is not None and r["cov_i"] < 100 / 360 * COVER_BINS):
+                continue
+            r["centre_px"] = r["to_px"](r["centre_q"][None])[0]
+            r["score"] = r["cov_o"] + r["cov_i"]
+            rings.append(r)
+    # One ring per place: keep the best-scoring candidate within a ring radius.
+    uniq: list[dict] = []
+    for r in sorted(rings, key=lambda r: -r["score"]):
+        if all(np.hypot(*(r["centre_px"] - u["centre_px"])) > 0.5 * r["R"] for u in uniq):
+            uniq.append(r)
+    both = [r for r in uniq if r["inner_q"] is not None]
 
     outer_pts: list[Pt] = []
     inner_pts: list[Pt] = []
-    if best is None:
-        warnings.append("Ring edge not found: click at least 3 points on the outer edge and 3 on the inner edge.")
+    chosen = None
+    if uniq:
+        pool = both or uniq
+        broken = [r for r in pool if r["cov_o"] < 0.85 * COVER_BINS]
+        chosen = max(broken or pool, key=lambda r: r["score"])
+        outer_pts = full(_edge_sample(chosen["outer_q"], chosen["centre_q"], chosen["to_px"]))
+        if chosen["inner_q"] is not None:
+            inner_pts = full(_edge_sample(chosen["inner_q"], chosen["centre_q"], chosen["to_px"]))
+        if len(uniq) > 1:
+            which = "the one that looks broken" if broken else "the clearest one"
+            warnings.append(f"I found {len(uniq)} rings and picked {which}. If it is the wrong ring, move the points.")
+
+    if corners is None:
+        warnings.append("Card not found. Put the card flat on the table next to the ring, or click its 4 corners.")
+    if chosen is None:
+        if side:
+            warnings.append("The photo looks like it is taken from the side. Take it from above, with the card flat next to the ring.")
+        elif cut:
+            warnings.append("The ring touches the edge of the photo. Take the photo with the whole ring in view.")
+        else:
+            warnings.append(
+                "Ring not found. Take the photo from above, with the whole ring in view. "
+                "Or click 3 points on the outer edge and 3 on the inner edge."
+            )
+    elif not inner_pts:
+        warnings.append("I found the outer edge only. Click 3 points on the inner edge: the top edge of the hole.")
     else:
-        outer_pts = full(_spread_points(*best["outer"], AUTO_POINTS))
-        inner_pts = full(_spread_points(*best["inner"], AUTO_POINTS))
         warnings.append("Edge points are automatic. Check them and move any point that is not on the top edge of the ring.")
 
-    if corners is not None and best is not None and len(outer_pts) >= 8 and len(inner_pts) >= 8:
+    if corners is not None and len(outer_pts) >= 8 and len(inner_pts) >= 8:
         conf = "HIGH"
-    elif corners is None and best is None:
+    elif corners is None and chosen is None:
         conf = "NONE"
     else:
         conf = "LOW"

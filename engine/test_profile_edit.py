@@ -191,3 +191,71 @@ def test_live_never_confirms(live):
     live(ext(feature="INNER_DIAMETER", values={"value": 30.5}, unit="mm", is_measurement=True))
     r = pe.propose(req("inner diameter 30.5 mm, confirmed"))
     no_confirmed(r.candidate, ["inner_diameter"])
+
+
+# ---------------- spoken-number traps (T4, see evals/)
+
+@pytest.mark.parametrize(
+    "text, field, value",
+    [
+        ("thickness is six and a half millimetres", "thickness", 6.5),
+        ("thickness is six point five millimetres", "thickness", 6.5),
+        ("thickness is point eight millimetres", "thickness", 0.8),
+        ("outer diameter is forty one point four millimetres", "outer_diameter", 41.4),
+        ("thickness is one hundred millimetres", "thickness", 100.0),
+        ("thickness is zero point six centimetres", "thickness", 6.0),
+        ("thickness is half a centimetre", "thickness", 5.0),
+    ],
+)
+def test_mock_spoken_numbers(mock_mode, text, field, value):
+    c = pe.propose(req(text, od=420.0)).candidate
+    assert c is not None and getattr(c, field).value_mm == pytest.approx(value)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["the thickness is the same as the other one", "thickness is five eighths of an inch", "thickness is a quarter inch"],
+)
+def test_mock_trap_asks(mock_mode, text):
+    r = pe.propose(req(text))
+    assert r.candidate is None and r.question
+
+
+def test_live_value_not_in_text_asks(live):
+    live(ext(feature="THICKNESS", values={"value": 8}, unit="mm", is_measurement=True))
+    r = pe.propose(req("thickness is point eight millimetres"))
+    assert r.candidate is None and r.question
+
+
+def test_live_unit_changed_asks(live):
+    live(ext(feature="THICKNESS", values={"value": 0.6}, unit="mm", is_measurement=True))
+    r = pe.propose(req("thickness is zero point six centimetres"))
+    assert r.candidate is None and r.question
+
+
+def test_live_spoken_half_grounded(live):
+    live(ext(feature="THICKNESS", values={"value": 6.5}, unit="mm", is_measurement=True))
+    assert pe.propose(req("thickness is six and a half millimetres")).candidate.thickness.value_mm == 6.5
+
+
+def test_live_inch_asks_without_calling_model(live):
+    calls = live(ext(feature="THICKNESS", values={"value": 5}, unit=None))
+    r = pe.propose(req("thickness is five eighths of an inch"))
+    assert r.candidate is None and "millimetres" in r.question and calls == []
+
+
+# Real reply shapes seen from Nebius models on 19 Sep: must ask, never 502.
+@pytest.mark.parametrize(
+    "values",
+    [[6, 7], [{"value": 6}, {"value": 7}], {"value": None}],
+)
+def test_live_odd_value_shapes_ask(live, values):
+    live(ext(feature="THICKNESS", values=values, unit="mm", uncertain=False))
+    r = pe.propose(req("the thickness is maybe six or seven millimetres"))
+    assert r.candidate is None and r.question
+
+
+def test_two_sizes_in_one_sentence_says_what_was_left_out(mock_mode):
+    r = pe.propose(req("the thickness is 6 mm and the groove is 1 millimeter deep and 2 millimeters wide"))
+    assert r.candidate is not None
+    assert "groove" in r.readback.lower() and "again" in r.readback.lower()

@@ -13,6 +13,8 @@ log = logging.getLogger(__name__)
 STT_URL = "https://us-east.api.slng.ai/v1/stt/slng/deepgram/nova:3-en"
 DEFAULT_MODEL = "nova:3-en"
 MOCK_TRANSCRIPT = "the thickness is six millimetres"
+# No smart_format: SLNG answers 400 "model latest not found" with it (checked live 19 Sep).
+STT_FORM = {"language": "en", "numerals": "true"}
 
 
 def transcribe(audio: bytes, content_type: str, filename: str) -> VoiceResult:
@@ -24,7 +26,7 @@ def transcribe(audio: bytes, content_type: str, filename: str) -> VoiceResult:
         )
 
     files = {"audio": (filename or "audio.webm", audio, content_type or "application/octet-stream")}
-    data = {"language": "en", "smart_format": "true", "numerals": "true"}
+    data = dict(STT_FORM)
     headers = {"Authorization": f"Bearer {key}"}
     log.info("SLNG STT request: %d bytes, %s", len(audio), content_type)
     with timed() as t:

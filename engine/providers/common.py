@@ -50,11 +50,13 @@ def nebius_key() -> str | None:
 
 
 def nebius_vision_model() -> str:
-    return env("NEBIUS_MODEL") or "Qwen/Qwen2.5-VL-72B-Instruct"
+    # Checked live on 19 Sep: accepts images and JSON mode. (Qwen2.5-VL is not on Token Factory; Qwen3.5 is text only.)
+    return env("NEBIUS_MODEL") or "google/gemma-3-27b-it"
 
 
 def nebius_text_model() -> str:
-    return env("NEBIUS_TEXT_MODEL") or nebius_vision_model()
+    # Best on the T4 spoken-number eval on 19 Sep (24/25 before the reply-shape fix, ~0.6 s per call).
+    return env("NEBIUS_TEXT_MODEL") or "Qwen/Qwen3-235B-A22B-Instruct-2507"
 
 
 def nebius_client():

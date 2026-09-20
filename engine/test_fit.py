@@ -186,3 +186,29 @@ def test_auto_detect_demo_photo():
     f = fit_ring(img, auto.corners_px, CARD, auto.outer_edge_points_px, auto.inner_edge_points_px).fit
     assert 38 <= f.outer_diameter_mm <= 45
     assert 27 <= f.inner_diameter_mm <= 33
+
+
+def test_auto_detect_full_ring_uses_the_hole():
+    # A complete ring: the inner edge is a hole, not part of the outer outline.
+    img = np.full((3000, 2000, 3), (190, 215, 225), np.uint8)
+    card = np.array([[500, 300], [1040, 300], [1040, 1156], [500, 1156]], np.int32)
+    cv2.fillPoly(img, [card], (200, 120, 90))
+    cv2.circle(img, (1000, 2000), 150, (40, 220, 245), -1)
+    cv2.circle(img, (1000, 2000), 110, (190, 215, 225), -1)
+    out = auto_detect(img)
+    assert out.confidence == "HIGH"
+    for pts, r in ((out.outer_edge_points_px, 150), (out.inner_edge_points_px, 110)):
+        assert len(pts) >= 8
+        d = np.hypot(*(np.array(pts) - (1000, 2000)).T)
+        assert np.all(np.abs(d - r) < 4)
+
+
+def test_auto_detect_intact_photo_held_out():
+    path = ROOT / "sample-photos" / "20260919_173227.jpg"
+    if not path.exists():
+        pytest.skip("intact photo not present (sample-photos/ is gitignored)")
+    img = decode_image(path.read_bytes())
+    auto = auto_detect(img)
+    assert auto.corners_px is not None and len(auto.inner_edge_points_px) >= 8
+    f = fit_ring(img, auto.corners_px, CARD, auto.outer_edge_points_px, auto.inner_edge_points_px).fit
+    assert 38 <= f.outer_diameter_mm <= 45
