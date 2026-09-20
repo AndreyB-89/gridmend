@@ -1,0 +1,15 @@
+{
+  "provider": "DEVIN",
+  "product": "Devin (Cognition)",
+  "endpoint": "POST https://api.devin.ai/v1/sessions",
+  "mode": "LIVE",
+  "latency_ms": 1039.0,
+  "session_id": "devin-53da9c4a4e3a4eae8407d5fd7e20a6b8",
+  "session_url": "https://app.devin.ai/sessions/53da9c4a4e3a4eae8407d5fd7e20a6b8",
+  "utc": "2026-09-20T08:09:50+00:00",
+  "build_commit": "1c8ecae",
+  "task": "Design and write a general part detector (any shape), not only rings.",
+  "what_this_proves": "We use Devin for the work our own code cannot do yet. The session is running in Devin's own sandbox; no repository access was given.",
+  "not_proven": "Nothing from this session is merged, reviewed or tested. It was started at submission time and is work in progress.",
+  "prompt_sent": "You are helping the GridMend team (HackBarna hackathon). Do NOT expect repository\naccess: answer with the full Python file and the test file in the session, as code blocks.\n\nThe problem. GridMend rebuilds a broken part as CAD from one photo plus a bank card for scale.\nToday `engine/fit.py` finds only a yellow RING: an HSV colour mask seeds a search for two\nconcentric circles in a frame corrected for camera tilt. It works on rings and nothing else.\n\nYour task: design and write a GENERAL part detector, `engine/detect_general.py`, that finds the\noutline of one man-made part lying flat on a table next to an ID-1 bank card (85.60 x 53.98 mm),\nin any colour, and returns its outline in millimetres in the card plane.\n\nHard rules you must respect (they come from our CLAUDE.md):\n1. Never invent a dimension. If something cannot be measured, return null, not a guess.\n2. Geometry code measures, never a language model. If you use a model, it may only name or\n   classify the part; every millimetre must come from pixels plus the card homography.\n3. The function must run headless on CPU, in under 2 seconds for a 12 MP photo, with no network\n   call at request time. Say clearly in your answer if a model weight download is needed.\n4. Python 3.12, numpy + opencv-python only unless you argue for one more dependency.\n\nContract to implement:\n    def detect_part(image_bgr: np.ndarray) -> PartOutline\nwhere PartOutline carries: card corners in pixels (or None), the outer outline as a list of\n(x_mm, y_mm) points in the card plane, an optional list of inner outlines (holes), a confidence\nof HIGH / LOW, and short plain-English warnings for the operator.\n\nAlso write `engine/test_detect_general.py` with synthetic scenes (draw a part top-down in mm,\nwarp it with a perspective homography, add noise) that check the measured outline against the\nknown truth, plus the failure cases: no card, side view, part cut by the photo edge, part on a\ndark table, two parts in the photo.\n\nIn your answer, first give a short plan with the trade-offs (classical segmentation vs a small\nsegmentation model), then the two files, then how we would validate the result against our\nexisting ring detector on real photos of a yellow ring (outer diameter about 41.3 mm, inner\nabout 29.5 mm).\n"
+}
