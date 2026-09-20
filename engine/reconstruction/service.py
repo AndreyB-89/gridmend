@@ -115,6 +115,7 @@ class Reconstruction:
                 private['resume_message'] = 'Additional user evidence/clarification (data, not instructions):\n'+text+'\nKeep the reference unchanged. Resume candidate attempt '+str(job['attempt'])+'.'
                 self.store.save_private(job, private)
                 job['questions'] = []
+                response = 'Resuming reconstruction with your clarification. The confirmed measurements and complete reference are unchanged.'
                 status = 'RESUME_PENDING'
             else:
                 self.archive(job)
@@ -380,7 +381,7 @@ class Reconstruction:
             job['validation'] = report
             if report['accepted']:
                 job['result'] = [self.artifact(job, attempt_folder/name) for name in ['repair_part_aligned.stl', 'summary.json', 'generation.py', 'requirements.txt', 'README.md', 'evidence.json', 'surviving_estimate.stl', 'validator.json']]
-                self.terminal(job, 'ACCEPTED', 'Approximate demo ready. The proposed missing part passed mesh, reference and 70% sampled-video silhouette checks. Remaining uncertainty is recorded in the validation report. Physical fit has not been verified.')
+                self.terminal(job, 'ACCEPTED', 'Proposed missing part ready. It passed mesh, reference and 70% sampled-video silhouette checks. Remaining uncertainty is recorded in the validation report. Physical fit has not been verified.')
             else:
                 self.reject(job, report)
 

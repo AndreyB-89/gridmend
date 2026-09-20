@@ -638,7 +638,8 @@ def test_resume_ignores_answered_input_while_working_after_restart(tmp_path, med
     fake.needs_input = True
     before = run_until(service, id, {'WAITING_INPUT'})
     reference_hash = digest(service.store.revision_dir(before)/'reference/reference_full.stl')
-    service.turn(id, before['revision'], 'The back boundary is visible near the end.', 'clarification')
+    service.turn(id, before['revision'], 'Use the confirmed dimensions unchanged for an approximate reconstruction.', 'clarification')
+    assert 'Resuming reconstruction' in service.store.load(id)['messages'][-1]['text']
     if uncertain_delivery:
         def message(text):
             fake.messages.append(text)
