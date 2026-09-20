@@ -330,7 +330,11 @@ export default function App() {
     return w > 0 && h > 0 ? [w, h] : null;
   }, [cardW, cardH]);
 
-  const clicksReady = clicks.corners.length === 4 && clicks.outer.length >= 3 && clicks.inner.length >= 3;
+  // A part without a hole (a cup, a stick, a bracket) has no inner edge. The inner
+  // points are optional: with none, the app still reads the photo and measures the
+  // outline. Only CAD needs both edges, because the template makes rings.
+  const clicksReady =
+    clicks.corners.length === 4 && clicks.outer.length >= 3 && (clicks.inner.length === 0 || clicks.inner.length >= 3);
 
   const runInspect = async () => {
     if (!photoFile || !clicksReady) return;
@@ -775,7 +779,7 @@ export default function App() {
                   {inspecting ? "Analysing…" : inspect ? "Analyse again" : "Analyse photo"}
                 </button>
                 {!clicksReady && !detecting && (
-                  <p className="small-note">Needs 4 card corners, and 3 or more points on each edge.</p>
+                  <p className="small-note">Needs 4 card corners and 3 or more points on the outer edge. The inner edge is only for parts with a hole: use none, or 3 or more.</p>
                 )}
                 <div className="change-photo">
                   <label className="link file-link">
