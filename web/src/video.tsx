@@ -90,7 +90,6 @@ export type VideoControl = ReturnType<typeof useVideo>;
 export function VideoPreview({video, onUpload}: {video: VideoControl; onUpload: (file: File | undefined) => void}) {
   const source = video.preview ?? (video.job ? `/api/reconstructions/${video.job.job_id}/files/original-video.bin?status=${encodeURIComponent(video.job.status)}` : null);
   return <><div className="canvas-wrap">{source ? <video src={source} controls playsInline style={{width: '100%', maxHeight: 350, display: 'block'}} /> : <p className="small-note">Original video preview is not available.</p>}</div>
-    <p className="small-note">Video shows shape and damage. Supply the intact object’s measurements in chat. Up to 512 MiB and 180 seconds.</p>
     <div className="change-photo"><label className="link file-link">Change photo or video<input type="file" accept="image/*,video/*,.mov,.mkv" onChange={e => onUpload(e.target.files?.[0])}/></label></div></>;
 }
 export function VideoChat({video}: {video: VideoControl}) {

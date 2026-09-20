@@ -455,10 +455,6 @@ export default function App() {
     }
   };
 
-  // ---- derived display values ----
-  const step = !photoUrl ? 1 : !inspect ? 2 : !canBuild ? 3 : 4;
-  const stepText = ["Add a photo", "Check the points", "Answer and confirm", "Build the part"][step - 1];
-
   const showProfileAsk =
     !!inspect && !pendingDraft && !editing && !accepted.profile_confirmed && (accepted.thickness.confirmed || accepted.groove !== null);
 
@@ -670,9 +666,6 @@ export default function App() {
         <section className="panel chat" aria-label="Conversation">
           <div className="chat-head">
             <h2>Talk it through</h2>
-            <span className="step">
-              {video.active ? "Video → intact reference → missing material" : <>Step {step} of 4: <b>{stepText.toLowerCase()}</b></>}
-            </span>
           </div>
           <div className="thread" ref={threadRef} aria-live="polite">
             {video.active ? <><VideoChat video={video}/>{log.filter((i): i is Extract<Item, {kind:"me"}> => i.kind === "me" && i.status === "review").map(item => <MeBubble key={item.id} item={item} busy={video.busy} onUse={useTranscript} onDiscard={id => setLog(l => l.filter(i => i.id !== id))}/>)}</> : <>
