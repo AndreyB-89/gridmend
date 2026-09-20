@@ -24,12 +24,20 @@ from engine.fit import FitError, _card_homography, _detect_card, _project
 
 CARD_ID1_MM = (85.6, 53.98)  # ID-1 bank card
 MAX_SIDE = 900  # working size in pixels; the card is still ~200 px wide at this size
-BG_KERNEL = 51  # median blur that removes the part but keeps the table shading
+BG_KERNEL = 51  # median window on the shrunk copy
+BG_SHRINK = 8  # shrink before the median: the window then covers a part AND its shadow
 MIN_DIFF = 8  # Lab units: below this the pixel is table
 L_STRONG = 45  # a lightness jump this big is an edge, not a soft shadow
 SHADOW_COLOUR_TOL = 1.25  # channels scaled this evenly means less light, not another colour
 SHADOW_MAX_RATIO = 0.92  # and the pixel must be darker than the table
+GRAIN_KERNEL = 9  # median window that removes wood grain but keeps the edge of a part
+TEXTURE_WIN = 21  # window for "how rough is the surface here"
+TEXTURE_KEEP = 0.55  # this much of the table's roughness still means table
+PLAIN_TABLE_TEX = 0.010  # below this the table has no grain, so roughness proves nothing
 MIN_AREA_FRAC = 0.0015  # smaller blobs are dirt, text or noise
+NEAR_CARD = 2.2  # a part sits within this many card diagonals of the card; further away is the room
+ROOM_REACH = 15  # pixels: how far the room reaches around what leaves the photo
+ROOM_TOUCH = 0.25  # this much of a blob inside that reach means it is the room too
 SECOND_PART_FRAC = 0.30  # a second blob this big means more than one part in the photo
 
 
@@ -37,53 +45,91 @@ SECOND_PART_FRAC = 0.30  # a second blob this big means more than one part in th
 class PartOutline:
     corners_px: list[tuple[float, float]] | None
     outline_mm: list[tuple[float, float]]
+    outline_px: list[tuple[float, float]] = field(default_factory=list)
+    candidates_px: list[list[tuple[float, float]]] = field(default_factory=list)
     holes_mm: list[list[tuple[float, float]]] = field(default_factory=list)
     length_mm: float | None = None
     width_mm: float | None = None
-    confidence: str = "NONE"  # HIGH / LOW / NONE
+    # HIGH = one clear candidate and a card. It does NOT mean the number is right:
+    # a part that is not flat on the table (a standing cup) still measures wrong.
+    confidence: str = "NONE"
     warnings: list[str] = field(default_factory=list)
     overlay_png: bytes | None = None
 
 
-def _foreground(small_bgr: np.ndarray) -> np.ndarray:
-    """Pixels that differ from the local table colour, on L (light) and b (blue-yellow)."""
-    lab = cv2.cvtColor(small_bgr, cv2.COLOR_BGR2Lab)
-    # Background = a median on a quarter-size copy, so the window is wide enough to
-    # swallow a big part. On the full-size image a 51 px window fits inside a large
-    # part, the middle of the part becomes "background" and only its edges survive.
-    h, w = lab.shape[:2]
-    tiny = cv2.resize(lab, (max(8, w // 4), max(8, h // 4)), interpolation=cv2.INTER_AREA)
+def _big_blur(img: np.ndarray) -> np.ndarray:
+    """The slow part of the picture: the table with its shading, without the part.
+
+    A median on a quarter-size copy, so the window is wide enough to swallow a big
+    part. With a 51 px window on the full-size image the middle of a large part
+    becomes "background" and only its edges survive.
+    """
+    h, w = img.shape[:2]
+    tiny = cv2.resize(img, (max(8, w // BG_SHRINK), max(8, h // BG_SHRINK)), interpolation=cv2.INTER_AREA)
     k = BG_KERNEL if BG_KERNEL % 2 else BG_KERNEL + 1
-    bg = cv2.resize(cv2.medianBlur(tiny, k), (w, h), interpolation=cv2.INTER_LINEAR)
-    diff = cv2.absdiff(lab, bg)
-    # A shadow changes L a lot but a and b almost not at all. A part changes colour.
+    return cv2.resize(cv2.medianBlur(tiny, k), (w, h), interpolation=cv2.INTER_LINEAR)
+
+
+def _texture(lab: np.ndarray) -> np.ndarray:
+    """How rough the surface looks, next to how bright it is.
+
+    Wood grain keeps the same roughness in the light and in a shadow, because
+    less light scales the pattern and its average together. A smooth part has
+    almost none. This is the cue that a colour test cannot give us.
+    """
+    light = lab[:, :, 0].astype(np.float32)
+    fine = cv2.absdiff(light, cv2.medianBlur(lab, GRAIN_KERNEL)[:, :, 0].astype(np.float32))
+    return cv2.blur(fine, (TEXTURE_WIN, TEXTURE_WIN)) / (cv2.blur(light, (TEXTURE_WIN, TEXTURE_WIN)) + 1.0)
+
+
+def _foreground(small_bgr: np.ndarray) -> np.ndarray:
+    """Pixels that are a part, not the table, its grain or its shadow."""
+    lab = cv2.cvtColor(small_bgr, cv2.COLOR_BGR2Lab)
+    # Median first: it removes the grain of the table but keeps the edge of a part.
+    flat = cv2.medianBlur(lab, GRAIN_KERNEL)
+    bg = _big_blur(flat)
+    diff = cv2.absdiff(flat, bg)
+    # A shadow changes L a lot but a and b much less. A part changes colour.
     # So colour (a, b) decides, and lightness alone only counts when it is very strong.
     chroma = np.maximum(diff[:, :, 1], diff[:, :, 2]).astype(np.float32)
     thr_c = max(MIN_DIFF, float(np.median(chroma) + 5.0 * np.median(np.abs(chroma - np.median(chroma)))))
     light = diff[:, :, 0].astype(np.float32)
     mask = ((chroma > thr_c) | ((light > L_STRONG) & (chroma > 0.5 * thr_c))).astype(np.uint8) * 255
-    mask[_shadow(small_bgr)] = 0
+    mask[_shadow(small_bgr, lab)] = 0
     k3 = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k3, iterations=2)
     return cv2.morphologyEx(mask, cv2.MORPH_OPEN, k3, iterations=1)
 
 
-def _shadow(small_bgr: np.ndarray) -> np.ndarray:
-    """True where the pixel is the same colour as the table, only darker.
+def _shadow(small_bgr: np.ndarray, lab: np.ndarray) -> np.ndarray:
+    """True where the pixel is still the table, only with less light on it.
 
-    Less light does not change the colour of a surface, it only scales every
-    channel by about the same factor. So a shadow on wood has blue/green/red
-    ratios near each other and all below 1. A real part changes the ratios.
+    Two signs, because one is not enough:
+    1. Every channel scaled by about the same factor. That is a soft shadow on a
+       plain table, where the only change is "less of the same light".
+    2. The table's own roughness is still there, and the pixel is darker. A hard
+       shadow on wood is filled by a cooler light, so its colour DOES change, but
+       the grain under it does not go away. A smooth part has no grain.
     """
     img = small_bgr.astype(np.float32) + 1.0
-    h, w = img.shape[:2]
-    tiny = cv2.resize(img, (max(8, w // 4), max(8, h // 4)), interpolation=cv2.INTER_AREA)
-    k = BG_KERNEL if BG_KERNEL % 2 else BG_KERNEL + 1
-    bg = cv2.resize(cv2.medianBlur(tiny.astype(np.uint8), k).astype(np.float32) + 1.0, (w, h),
-                    interpolation=cv2.INTER_LINEAR)
+    bg = _big_blur(small_bgr).astype(np.float32) + 1.0
     ratio = img / bg
     lo, hi = ratio.min(axis=2), ratio.max(axis=2)
-    return (hi / np.maximum(lo, 1e-6) < SHADOW_COLOUR_TOL) & (hi < SHADOW_MAX_RATIO)
+    even = (hi / np.maximum(lo, 1e-6) < SHADOW_COLOUR_TOL) & (hi < SHADOW_MAX_RATIO)
+
+    tex = _texture(lab)
+    # Most of a photo is table, so the middle value of the roughness IS the table's
+    # roughness. (A frame of border pixels is not safe: a phone photo is often
+    # smeared or dark at the edge.)
+    table_tex = float(np.median(tex))
+    if table_tex < PLAIN_TABLE_TEX:  # a plain table: roughness says nothing, colour must decide
+        return even
+    darker = hi < SHADOW_MAX_RATIO
+    rough = (darker & (tex > TEXTURE_KEEP * table_tex)).astype(np.uint8)
+    # Shrink it a little: near the edge of a part the roughness reading is the edge
+    # itself, and without this the rule eats a few millimetres of the part.
+    rough = cv2.erode(rough, np.ones((3, 3), np.uint8))
+    return even | (rough > 0)
 
 
 def _drop_card(mask: np.ndarray, quad: np.ndarray | None) -> np.ndarray:
@@ -129,9 +175,21 @@ def detect_part(image_bgr: np.ndarray, card_size_mm: tuple[float, float] = CARD_
             warnings.append("The card looks too tilted. Take the photo more from above.")
 
     mask = _drop_card(_foreground(small), quad)
-    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    n, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
+    # Everything that runs out of the photo is the room, not the part: a table edge,
+    # a dark floor, a sleeve. What touches such an area belongs to it as well.
+    room = np.zeros((h, w), np.uint8)
+    for i in range(1, n):
+        x, y, bw, bh, _ = stats[i]
+        if x <= 1 or y <= 1 or x + bw >= w - 1 or y + bh >= h - 1:
+            room[labels == i] = 255
+    room = cv2.dilate(room, np.ones((ROOM_REACH, ROOM_REACH), np.uint8))
     min_area = MIN_AREA_FRAC * h * w
-    parts, cut = [], False
+    # The engineer is told to put the card next to the part. So a blob far from the
+    # card is the room, not the part: a table edge, a dark floor, a sleeve.
+    card_centre = np.mean(quad, axis=0) if quad is not None else None
+    card_span = float(np.linalg.norm(quad.max(0) - quad.min(0))) if quad is not None else 0.0
+    parts, cut, far = [], False, 0
     for i in range(1, n):
         x, y, bw, bh, area = stats[i]
         if area < min_area:
@@ -139,10 +197,18 @@ def detect_part(image_bgr: np.ndarray, card_size_mm: tuple[float, float] = CARD_
         if x <= 1 or y <= 1 or x + bw >= w - 1 or y + bh >= h - 1:
             cut = True
             continue
+        if card_centre is not None and np.linalg.norm(centroids[i] - card_centre) > NEAR_CARD * card_span:
+            far += 1
+            continue
+        if np.count_nonzero(room[labels == i]) > ROOM_TOUCH * area:
+            cut = True
+            continue
         parts.append((area, i))
     if not parts:
         if cut:
             warnings.append("The part touches the edge of the photo. Step back so the whole part is in view.")
+        elif far:
+            warnings.append("I see something, but not next to the card. Put the card beside the part.")
         else:
             warnings.append("I could not find a part next to the card. Put it on a plain table, away from the card.")
         return PartOutline(
@@ -154,6 +220,18 @@ def detect_part(image_bgr: np.ndarray, card_size_mm: tuple[float, float] = CARD_
         warnings.append(f"I see {len(parts)} parts and picked the biggest one.")
     if cut:
         warnings.append("Something else touches the edge of the photo.")
+
+    def outline_of(index):
+        one = (labels == index).astype(np.uint8)
+        cs, hier = cv2.findContours(one, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        return cs, hier
+
+    # Every candidate, biggest first, so the operator can say "no, that one".
+    candidates_px = [
+        [(round(float(x) / s, 1), round(float(y) / s, 1))
+         for x, y in max(outline_of(i)[0], key=cv2.contourArea).reshape(-1, 2)]
+        for _, i in parts
+    ]
 
     blob = (labels == parts[0][1]).astype(np.uint8)
     cs, hier = cv2.findContours(blob, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
@@ -183,6 +261,8 @@ def detect_part(image_bgr: np.ndarray, card_size_mm: tuple[float, float] = CARD_
     return PartOutline(
         corners_px=[(float(p[0]) / s, float(p[1]) / s) for p in quad] if quad is not None else None,
         outline_mm=outline_mm,
+        outline_px=candidates_px[0],
+        candidates_px=candidates_px,
         holes_mm=holes_mm,
         length_mm=length_mm,
         width_mm=width_mm,
