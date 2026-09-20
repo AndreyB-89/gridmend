@@ -6,7 +6,8 @@ import cv2
 import numpy as np
 import pytest
 
-from engine.fit import FitError, _covered_arc, auto_detect, decode_image, fit_ring
+from engine.detect_general import auto_detect
+from engine.fit import FitError, _covered_arc, decode_image, fit_ring
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO_PHOTO = ROOT / "sample-photos" / "20260919_180605.jpg"
@@ -160,6 +161,8 @@ def test_auto_detect_blank_image():
 
 def test_auto_detect_drawn_scene():
     # Beige table, blue card (portrait), yellow C-shaped arc (outer r=150, inner r=110 px).
+    # A broken ring has no hole, so only the outer edge is offered (see
+    # engine/test_autodetect_general.py).
     img = np.full((3000, 2000, 3), (190, 215, 225), np.uint8)
     card = np.array([[500, 300], [1040, 300], [1040, 1156], [500, 1156]], np.int32)
     cv2.fillPoly(img, [card], (200, 120, 90))
@@ -168,10 +171,9 @@ def test_auto_detect_drawn_scene():
     out = auto_detect(img)
     assert out.confidence == "HIGH"
     assert np.allclose(out.corners_px, card, atol=4)
-    assert len(out.outer_edge_points_px) >= 8 and len(out.inner_edge_points_px) >= 8
-    for pts, r in ((out.outer_edge_points_px, 150), (out.inner_edge_points_px, 110)):
-        d = np.hypot(*(np.array(pts) - (1000, 2000)).T)
-        assert np.all(np.abs(d - r) < 4)
+    assert len(out.outer_edge_points_px) >= 8
+    d = np.hypot(*(np.array(out.outer_edge_points_px) - (1000, 2000)).T)
+    assert np.all(d <= 155)
 
 
 def test_auto_detect_demo_photo():
@@ -182,10 +184,15 @@ def test_auto_detect_demo_photo():
     auto = auto_detect(img)
     assert time.perf_counter() - t0 < 1.5
     assert auto.corners_px is not None
-    assert len(auto.outer_edge_points_px) >= 8 and len(auto.inner_edge_points_px) >= 8
-    f = fit_ring(img, auto.corners_px, CARD, auto.outer_edge_points_px, auto.inner_edge_points_px).fit
+    assert len(auto.outer_edge_points_px) >= 8
+    # The demo photo is a BROKEN ring: no hole, so the inner edge is clicked by the
+    # operator. The outer edge alone must still measure about 41 mm.
+    f = fit_ring(img, auto.corners_px, CARD, auto.outer_edge_points_px, _demo_inner()).fit
     assert 38 <= f.outer_diameter_mm <= 45
-    assert 27 <= f.inner_diameter_mm <= 33
+
+
+def _demo_inner():
+    return json.loads((ROOT / "fixtures" / "demo-clicks.json").read_text())["inner_edge_points_px"]
 
 
 def test_auto_detect_full_ring_uses_the_hole():

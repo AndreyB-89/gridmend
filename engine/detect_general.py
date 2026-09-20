@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from engine.fit import FitError, _card_homography, _detect_card, _project
+from engine.fit import AutoDetect, FitError, _card_homography, _detect_card, _project
 
 CARD_ID1_MM = (85.6, 53.98)  # ID-1 bank card
 MAX_SIDE = 900  # working size in pixels; the card is still ~200 px wide at this size
@@ -38,6 +38,10 @@ MIN_AREA_FRAC = 0.0015  # smaller blobs are dirt, text or noise
 NEAR_CARD = 2.2  # a part sits within this many card diagonals of the card; further away is the room
 ROOM_REACH = 15  # pixels: how far the room reaches around what leaves the photo
 ROOM_TOUCH = 0.25  # this much of a blob inside that reach means it is the room too
+OUTER_POINTS = 16  # points offered on the outer edge
+INNER_POINTS = 12  # points offered on the edge of the hole
+MIN_HOLE_POINTS = 12  # a smaller hole outline is noise, not an inner edge
+HULL_TOL_PX = 3.0  # an outline point this close to the convex hull is on the outer skin
 SECOND_PART_FRAC = 0.30  # a second blob this big means more than one part in the photo
 
 
@@ -48,6 +52,7 @@ class PartOutline:
     outline_px: list[tuple[float, float]] = field(default_factory=list)
     candidates_px: list[list[tuple[float, float]]] = field(default_factory=list)
     holes_mm: list[list[tuple[float, float]]] = field(default_factory=list)
+    holes_px: list[list[tuple[float, float]]] = field(default_factory=list)
     length_mm: float | None = None
     width_mm: float | None = None
     # HIGH = one clear candidate and a card. It does NOT mean the number is right:
@@ -264,9 +269,61 @@ def detect_part(image_bgr: np.ndarray, card_size_mm: tuple[float, float] = CARD_
         outline_px=candidates_px[0],
         candidates_px=candidates_px,
         holes_mm=holes_mm,
+        holes_px=[[(round(float(x) / s, 1), round(float(y) / s, 1)) for x, y in hole] for hole in holes],
         length_mm=length_mm,
         width_mm=width_mm,
         confidence=confidence,
         warnings=warnings,
         overlay_png=_overlay(small, quad, outer, holes),
+    )
+
+
+def _sample(points: list[tuple[float, float]], n: int) -> list[tuple[float, float]]:
+    """n points spread evenly along a closed outline."""
+    if len(points) <= n:
+        return points
+    step = len(points) / n
+    return [points[int(round(i * step)) % len(points)] for i in range(n)]
+
+
+def _outer_boundary(outline: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """The points of the outline that lie on its outer skin.
+
+    A broken ring is a "C": its outline runs around the outside AND back along the
+    inside. Feeding all of it to a circle fit gives a diameter about 10% too small.
+    The outer skin is the part of the outline that touches its own convex hull, and
+    that is true for any shape, round or not.
+    """
+    if len(outline) < 8:
+        return outline
+    q = np.asarray(outline, np.float32)
+    hull = cv2.convexHull(q.reshape(-1, 1, 2)).reshape(-1, 2)
+    keep = [p for p in q if abs(cv2.pointPolygonTest(hull.reshape(-1, 1, 2), (float(p[0]), float(p[1])), True)) <= HULL_TOL_PX]
+    return [tuple(map(float, p)) for p in keep] if len(keep) >= 8 else outline
+
+
+def auto_detect(image_bgr: np.ndarray) -> AutoDetect:
+    """The app's first guess: card corners, plus points on the outer and inner edge.
+
+    This replaces the old ring-only detector. The points come from the outline of
+    whatever part is next to the card, and from its largest hole, so a ring, a cup
+    and a stick all go through the same road. The operator still checks the points.
+    """
+    part = detect_part(image_bgr)
+    outer = _sample(_outer_boundary(part.outline_px), OUTER_POINTS)
+    inner: list[tuple[float, float]] = []
+    if part.holes_px:
+        biggest = max(part.holes_px, key=len)
+        if len(biggest) >= MIN_HOLE_POINTS:
+            inner = _sample(biggest, INNER_POINTS)
+    warnings = list(part.warnings)
+    if outer and not inner:
+        warnings.append("I found no hole in this part. If it has one, click 3 points on the inner edge.")
+    confidence = part.confidence if outer else "NONE"
+    return AutoDetect(
+        corners_px=part.corners_px,
+        outer_edge_points_px=outer,
+        inner_edge_points_px=inner,
+        confidence=confidence,
+        warnings=warnings,
     )

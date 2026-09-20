@@ -218,7 +218,8 @@ async def auto_detect_route(top_image: UploadFile = File(...)):
     """Proposes card corners and ring edge points. The operator checks and corrects them."""
     from dataclasses import asdict
 
-    from engine.fit import FitError, auto_detect, decode_image
+    from engine.detect_general import auto_detect
+    from engine.fit import FitError, decode_image
 
     data = await read_upload(top_image, "photo")
     try:
