@@ -139,8 +139,8 @@ class Reconstruction:
             if questions(spec):
                 raise ValueError(' '.join(questions(spec)))
             for k in required(spec):
-                if not spec.dimensions[k].source_text or not spec.dimensions[k].message_id:
-                    raise ValueError('Every dimension needs independently supplied measurement provenance.')
+                if not spec.dimensions[k].source_text or (spec.dimensions[k].source == 'operator' and not spec.dimensions[k].message_id):
+                    raise ValueError('Every dimension needs operator measurement or explicit design-default provenance.')
                 spec.dimensions[k].confirmed = True
             spec.confirmed = True
             job['spec'] = spec.model_dump()

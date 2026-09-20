@@ -111,12 +111,13 @@ export interface ApiError {
   message: string;
 }
 
-// Video workflow v1. Dimensions can only come from user messages.
-export type VideoFamily = 'ring' | 'cylinder' | 'box';
-export type VideoFeature = 'outer_diameter' | 'inner_diameter' | 'diameter' | 'height' | 'length' | 'width' | 'wall_thickness' | 'cavity_depth' | 'groove_depth' | 'groove_width';
+// Video workflow v1. Operator measurements and explicitly confirmed design defaults.
+export type VideoFamily = 'ring' | 'cylinder' | 'box' | 'open_frustum';
+export type VideoFeature = 'outer_diameter' | 'inner_diameter' | 'diameter' | 'bottom_diameter' | 'top_diameter' | 'height' | 'length' | 'width' | 'wall_thickness' | 'bottom_thickness' | 'cavity_depth' | 'groove_depth' | 'groove_width';
 export interface SuppliedMeasurement {
   value_mm: number | null; original_value: number | null; original_unit: string | null;
   source_text: string | null; message_id: string | null; confirmed: boolean;
+  source: 'operator' | 'design_default';
 }
 export interface ReferenceSpec {
   family: VideoFamily | null; cavity: 'solid' | 'through' | 'blind' | null;

@@ -133,8 +133,8 @@ class ApiError(Strict):
     message: str
 
 # Video workflow v1. Separate from photo-derived proposals.
-VideoFamily = Literal['ring', 'cylinder', 'box']
-VideoFeature = Literal['outer_diameter', 'inner_diameter', 'diameter', 'height', 'length', 'width', 'wall_thickness', 'cavity_depth', 'groove_depth', 'groove_width']
+VideoFamily = Literal['ring', 'cylinder', 'box', 'open_frustum']
+VideoFeature = Literal['outer_diameter', 'inner_diameter', 'diameter', 'bottom_diameter', 'top_diameter', 'height', 'length', 'width', 'wall_thickness', 'bottom_thickness', 'cavity_depth', 'groove_depth', 'groove_width']
 
 
 class SuppliedMeasurement(Strict):
@@ -143,6 +143,7 @@ class SuppliedMeasurement(Strict):
     original_unit: Optional[str] = None
     source_text: Optional[str] = None
     message_id: Optional[str] = None
+    source: Literal['operator', 'design_default'] = 'operator'
     confirmed: bool = False
 
 

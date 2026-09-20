@@ -93,8 +93,12 @@ export function VideoPreview({video, onUpload}: {video: VideoControl; onUpload: 
     <p className="small-note">Video shows shape and damage. Supply the intact object’s measurements in chat. Up to 512 MiB and 180 seconds.</p>
     <div className="change-photo"><label className="link file-link">Change photo or video<input type="file" accept="image/*,video/*,.mov,.mkv" onChange={e => onUpload(e.target.files?.[0])}/></label></div></>;
 }
+function shapeLabel(family: VideoState['spec']['family'] | undefined) {
+  return family === 'open_frustum' ? 'open-top truncated cone (cup)' : family ?? 'shape unknown';
+}
 function featureKeys(job: VideoState | null): VideoFeature[] {
   const s = job?.spec;
+  if (s?.family === 'open_frustum') return ['bottom_diameter', 'top_diameter', 'height', 'wall_thickness', 'bottom_thickness'];
   let keys: VideoFeature[] = s?.family === 'box' ? ['length', 'width', 'height'] : s?.family === 'cylinder' ? ['diameter', 'height'] : ['outer_diameter', 'inner_diameter', 'height'];
   if (s?.family !== 'ring' && s?.cavity && s.cavity !== 'solid') keys.push(s.family === 'box' ? 'wall_thickness' : 'inner_diameter');
   if (s?.cavity === 'blind') keys.push('cavity_depth');
@@ -102,9 +106,10 @@ function featureKeys(job: VideoState | null): VideoFeature[] {
   return keys;
 }
 export function VideoDimensions({job}: {job: VideoState | null}) {
-  return <div className="panel dims"><div className="dims-head"><h2>Dimensions</h2><small>{job?.spec.confirmed ? 'Confirmed' : 'From your measurements'}</small></div>
-    {featureKeys(job).map(k => {const dim=job?.spec.dimensions[k]; return <div className={`dim ${dim?.confirmed ? 'ok' : dim?.value_mm ? 'draft' : 'unknown'}`} key={k}><span className="name">{k.replaceAll('_',' ')}</span><span className="val">{dim?.value_mm ?? '?'}<small>mm</small></span><span className="meta"><StateMark state={dim?.confirmed ? 'ok' : dim?.value_mm ? 'draft' : 'unknown'}/></span></div>;})}
-    <p className="small-note">Intact {job?.spec.family ?? 'shape unknown'} · {job?.spec.cavity ?? 'cavity not yet specified'} · {job?.spec.profile ?? 'profile not yet specified'}</p></div>;
+  return <div className="panel dims"><div className="dims-head"><h2>Dimensions</h2><small>{job?.spec.confirmed ? 'Confirmed' : job?.spec.family === 'open_frustum' ? 'Measurements and design defaults' : 'From your measurements'}</small></div>
+    {featureKeys(job).map(k => {const dim=job?.spec.dimensions[k]; return <div className={`dim ${dim?.confirmed ? 'ok' : dim?.value_mm ? 'draft' : 'unknown'}`} key={k}><span className="name">{k.replaceAll('_',' ')}{dim?.source === 'design_default' ? ' (design default)' : ''}</span><span className="val">{dim?.value_mm ?? '?'}<small>mm</small></span><span className="meta"><StateMark state={dim?.confirmed ? 'ok' : dim?.value_mm ? 'draft' : 'unknown'}/></span></div>;})}
+    <p className="small-note">Intact {shapeLabel(job?.spec.family)} · {job?.spec.cavity ?? 'cavity not yet specified'} · {job?.spec.profile ?? 'profile not yet specified'}</p>
+    {job?.spec.family === 'open_frustum' && <p className="small-note">Outer diameters · radial wall thickness · closed base at Z = 0 · open top at Z = height.</p>}</div>;
 }
 export function VideoChat({video}: {video: VideoControl}) {
   return <>{video.job?.messages.map((m,i) => <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{m.text}</p>{m.role !== 'user' && <ModePill label="Video workflow" mode={m.mode ?? video.job!.mode}/>}</div></div>)}
@@ -125,7 +130,7 @@ export function VideoResult({video}: {video: VideoControl}) {
   return <><div className={`viewer ${full ? 'has-model' : ''}`}><div className="v-top"><div><h2>{repair ? 'Proposed missing part' : full ? 'Complete reference' : 'Reconstruction'}</h2><p className="sub">{j?.status.replaceAll('_',' ').toLowerCase() ?? 'Waiting for video'}</p></div>{j && <ModePill label="Video workflow" mode={j.mode}/>}</div>
     {full ? <RingViewer ringUrl={full.url} segmentUrl={repair?.url ?? null} referenceMode/> : <div className="viewer-empty"><p>No 3D model yet. Confirm the intact shape and measurements first.</p></div>}
     {full && <div className="legend"><span className="pill"><span className="sw y"/>Complete reference</span>{repair && <span className="pill"><span className="sw"/>Proposed missing material</span>}</div>}</div>
-    <div className="panel sec-panel">{j?.spec.family === 'ring' ? <SectionView wall={{value: val('outer_diameter') && val('inner_diameter') ? (val('outer_diameter')!-val('inner_diameter')!)/2 : null, state: j.spec.confirmed ? 'ok' : 'unknown'}} thickness={{value:val('height'),state:j.spec.confirmed?'ok':'unknown'}} groove={j.spec.profile==='inner_groove' ? {depth:val('groove_depth'),width:val('groove_width'),state:j.spec.confirmed?'ok':'unknown'} : null} grooveKnown={j.spec.profile==='plain'} profileConfirmed={j.spec.confirmed}/> : <p className="small-note">Complete reference: {j?.spec.family ?? 'shape to confirm'}, {j?.spec.cavity ?? 'solid or hollow to confirm'}. All reference dimensions come from your measurements.</p>}</div>
+    <div className="panel sec-panel">{j?.spec.family === 'ring' ? <SectionView wall={{value: val('outer_diameter') && val('inner_diameter') ? (val('outer_diameter')!-val('inner_diameter')!)/2 : null, state: j.spec.confirmed ? 'ok' : 'unknown'}} thickness={{value:val('height'),state:j.spec.confirmed?'ok':'unknown'}} groove={j.spec.profile==='inner_groove' ? {depth:val('groove_depth'),width:val('groove_width'),state:j.spec.confirmed?'ok':'unknown'} : null} grooveKnown={j.spec.profile==='plain'} profileConfirmed={j.spec.confirmed}/> : <p className="small-note">Complete reference: {shapeLabel(j?.spec.family)}, {j?.spec.cavity ?? 'solid or hollow to confirm'}. Reference dimensions use your measurements and any confirmed design defaults.</p>}</div>
     <div className="panel build"><button className="build-btn" disabled={j?.status !== 'AWAITING_CONFIRMATION' || video.busy} onClick={() => void video.confirm()}>Confirm and build CAD</button>
     {j && <p className="build-note">Candidate {j.attempt} · corrections {j.retries}/{j.max_retries}. Wall limit {Number(j.limits.wall_seconds)/3600} h. {j.limits.max_acu ? `ACU cap ${j.limits.max_acu}.` : 'Uses the configured Devin account limits.'}</p>}
     {full && <div className="dl">{[...(j?.reference ?? []), ...(j?.status === 'ACCEPTED' ? j.result : [])].map(a => <a key={a.url} className={a.name==='repair_part_aligned.stl'?'red':undefined} href={a.url} download>{DOWNLOAD_LABEL[a.name] ?? a.name}</a>)}</div>}

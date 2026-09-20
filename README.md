@@ -38,7 +38,7 @@ When the operator answers a Devin question without changing the specification, G
 
 Video ingestion performs local decoding and frame extraction. It does not wait for a Nebius image analysis. The reference agent uses text and tools; `NEBIUS_VIDEO_MODEL` overrides its model, otherwise it uses `NEBIUS_TEXT_MODEL` (default `Qwen/Qwen3-235B-A22B-Instruct-2507`). LIVE requires server-side `NEBIUS_API_KEY` and `DEVIN_API_KEY`; `RECONSTRUCTION_MODE=MOCK` builds only the reference and starts no paid session.
 
-The supported intact templates are rings, cylinders and boxes, with their supported profiles and cavities. Computational validation does not establish physical fit.
+The supported intact templates are rings, cylinders, boxes and open-top truncated cones. “Cup”, “truncated cone” and “frustum” select `open_frustum`: an open top and closed bottom, centred on Z with its base at Z = 0. Bottom/base/basis diameter and top/upper diameter are separate outer measurements. Supply both diameters and height; radial wall thickness and axial bottom thickness each default to **1.5 mm**, as approved design parameters. These defaults are labelled in the readback, UI and provenance and must be confirmed; explicit thickness measurements override them. No thickness is inferred from the video. The complete cup is a revolved cross-section, with a linearly tapered outside and constant radial wall thickness. The validator checks its tapered walls and floor analytically. Computational validation does not establish physical fit.
 
 ## Start here
 

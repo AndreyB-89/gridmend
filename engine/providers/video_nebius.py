@@ -12,10 +12,13 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ConfigDict, SecretStr
 from api.schemas import ReferenceSpec, SuppliedMeasurement
 from engine.providers.common import NEBIUS_BASE_URL, TIMEOUT_S, ProviderError, map_openai_error, nebius_key, nebius_text_model
-from engine.reconstruction.specification import NUMBER, SECTION, UNIT, questions, readback, section_measurements, unit_scale
+from engine.reconstruction.specification import CUP_THICKNESS_MM, NUMBER, SECTION, UNIT, questions, readback, section_measurements, unit_scale
 
 AGENT_PROMPT = Path(__file__).parents[1] / 'reconstruction/prompts/nebius-reference-v1.txt'
 ALIASES = {
+    'bottom_diameter': r'(?<!inner )(?<!inside )\b(?:bottom|base|basis|lower)\s+(?:outer\s+|outside\s+)?diameter',
+    'top_diameter': r'(?<!inner )(?<!inside )\b(?:top|upper|rim)\s+(?:outer\s+|outside\s+)?diameter',
+    'bottom_thickness': r'\b(?:bottom|base)\s+thickness',
     'outer_diameter': r'outer\s+diameter|outside\s+diameter|\bOD\b',
     'inner_diameter': r'inner\s+diameter|inside\s+diameter|\bID\b',
     'diameter': r'(?<!outer )(?<!inner )(?<!outside )(?<!inside )\bdiameter',
@@ -95,12 +98,12 @@ def bind_measurements(spec, feature, candidates, text, issues):
     if not candidates:
         return
     if any(not math.isclose(c.value_mm, candidates[0].value_mm, abs_tol=1e-8) for c in candidates[1:]):
-        spec.dimensions[feature] = SuppliedMeasurement()
+        spec.dimensions[feature] = SuppliedMeasurement(source_text=text, message_id=candidates[0].message_id)
         issues.append(f'Conflicting {feature.replace("_", " ")} values. Say "correct {feature.replace("_", " ")} to ... mm".')
         return
     old = spec.dimensions.get(feature)
-    if old and old.value_mm is not None and not math.isclose(old.value_mm, candidates[0].value_mm, abs_tol=1e-8) and not re.search(r'\b(?:correct|change|instead|replace)\b', text, re.I):
-        spec.dimensions[feature] = SuppliedMeasurement()
+    if old and old.source != 'design_default' and old.value_mm is not None and not math.isclose(old.value_mm, candidates[0].value_mm, abs_tol=1e-8) and not re.search(r'\b(?:correct|change|instead|replace)\b', text, re.I):
+        spec.dimensions[feature] = SuppliedMeasurement(source_text=text, message_id=candidates[0].message_id)
         issues.append(f'You previously supplied {feature.replace("_", " ")} {old.value_mm:g} mm. Confirm a correction by saying "correct {feature.replace("_", " ")} to ... mm".')
         return
     spec.dimensions[feature] = candidates[0]
@@ -119,12 +122,14 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
     issues = []
     lower = text.lower()
     families = [f for f in ('ring', 'cylinder', 'box') if re.search(r'\b'+f+r'\b', lower)]
+    if re.search(r'\bcup\b|\btruncated\s+cone\b|\b(?:open[-_ ](?:top[-_ ])?)?frustum\b', lower):
+        families.append('open_frustum')
     if len(families) == 1:
         if spec.family and spec.family != families[0]:
             spec = ReferenceSpec(dimensions={})
         spec.family = families[0]
     elif len(families) > 1:
-        issues.append('Choose one reference shape: ring, cylinder, or box.')
+        issues.append('Choose one reference shape: ring, cylinder, box, or open-top truncated cone (cup).')
     cavity_conflict = bool(re.search(r'\bsolid\b', lower) and not re.search(r'\bnot\s+solid\b', lower) and re.search(r'hollow|\bcavity\b|through|blind', lower))
     if cavity_conflict:
         spec.cavity = None
@@ -137,6 +142,8 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
         spec.cavity = 'through'
     elif re.search(r'blind|open.top|closed.*bottom', lower):
         spec.cavity = 'blind'
+    elif spec.family == 'open_frustum' and spec.cavity is None:
+        spec.cavity = 'blind'
     elif re.search(r'hollow|cavity', lower) and spec.cavity is None:
         issues.append('Does the cavity pass all the way through, or is its bottom closed?')
     profile_text = re.sub(r'\b(?:not|no)\s+(?:plain|rectangular|square|inner groove)\b', '', lower)
@@ -147,12 +154,18 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
     elif profile_text != lower:
         spec.profile = None
         issues.append('Describe the required ring profile and features explicitly.')
-    if spec.family in ('cylinder', 'box'):
+    if spec.family in ('cylinder', 'box') or (spec.family == 'open_frustum' and spec.profile is None):
         spec.profile = 'plain'
     if re.search(r'\bmaybe\b|\babout\b|\bapprox|\bor\s+\d|not measured|not sure|\bguess(?:ed)?\b', lower):
+        if spec.family == 'open_frustum':
+            for feature in ('wall_thickness', 'bottom_thickness'):
+                if re.search(ALIASES[feature], text, re.I):
+                    spec.dimensions[feature] = SuppliedMeasurement(source_text=text, message_id=message_id)
         return spec, issues + ['Please give one independently measured value per feature, with a unit; resolve uncertain measurements first.']
     global_unit = re.search(r'\ball\s+(?:values?\s+)?(?:are\s+)?in\s+('+UNIT+r')', lower)
     updates = {}
+    named_spans = [match.span() for feature in ('bottom_diameter', 'top_diameter', 'wall_thickness', 'bottom_thickness')
+                   for match in re.finditer(ALIASES[feature], text, re.I)]
     for feature, aliases in ALIASES.items():
         if feature == 'diameter' and spec.family == 'ring':
             continue
@@ -161,6 +174,8 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
             aliases += '|'+radius_alias
         pattern = r'(?:'+aliases+r')\s*(?:is|of|=|:|to)?\s*('+NUMBER+r')\s*('+UNIT+r')?'
         found = list(re.finditer(pattern, text, re.I))
+        if feature in ('diameter', 'outer_diameter', 'height'):
+            found = [match for match in found if not any(start <= match.start() < end for start, end in named_spans)]
         if not found:
             continue
         candidates = []
@@ -177,6 +192,8 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
             except ValueError:
                 issues.append(f'{feature.replace("_", " ")} must be positive and at most 2000 mm.')
         updates[feature] = candidates
+        if not candidates and spec.family == 'open_frustum' and feature in ('wall_thickness', 'bottom_thickness'):
+            spec.dimensions[feature] = SuppliedMeasurement(source_text=text, message_id=message_id)
         if feature != 'height':
             bind_measurements(spec, feature, candidates, text, issues)
     section_text, section_id = text, message_id
@@ -207,6 +224,12 @@ def supplied_edit(spec: ReferenceSpec, text: str, message_id: str):
             updates.pop('height', None)
             issues.append(str(exc))
     bind_measurements(spec, 'height', updates.get('height', []), text, issues)
+    if spec.family == 'open_frustum':
+        for feature in ('wall_thickness', 'bottom_thickness'):
+            measurement = spec.dimensions.get(feature)
+            if feature not in updates and (measurement is None or (measurement.value_mm is None and not measurement.source_text)):
+                spec.dimensions[feature] = SuppliedMeasurement(value_mm=CUP_THICKNESS_MM, source='design_default',
+                    source_text=f'Cup design default: {feature.replace("_", " ")} {CUP_THICKNESS_MM:g} mm.')
     return spec, issues
 
 

@@ -16,7 +16,7 @@ from engine.providers.devin import ARTIFACT_NAMES, Devin
 from engine.providers.video_nebius import supplied_edit
 from engine.reconstruction.media import inspect_video
 from engine.reconstruction.service import Reconstruction, TERMINAL
-from engine.reconstruction.specification import empty_spec, questions, required, values
+from engine.reconstruction.specification import empty_spec, questions, readback, required, values
 from engine.reconstruction.store import Store, digest, redact
 from engine.reconstruction.validator import project, visual_checks
 
@@ -720,3 +720,166 @@ def test_artifact_url_restrictions(tmp_path,media,url):
     service,fake,id=ready_service(tmp_path,media)
     p=Devin(service.store,service.store.load(id))
     with pytest.raises(ValueError):p.download(url,tmp_path/'output')
+
+
+CUP_REQUEST = 'build the missing part of this cup with basis diameter 4.5cm and upper diameter 6.5cm'
+
+
+def confirmed_cup(text=CUP_REQUEST+' height 9cm'):
+    spec, issues = supplied_edit(empty_spec(), text, 'synthetic-cup-measurements')
+    assert not issues and not questions(spec)
+    spec.confirmed = True
+    for key in required(spec):
+        spec.dimensions[key].confirmed = True
+    return spec
+
+
+def test_exact_cup_request_keeps_measurements_separate_from_design_defaults():
+    spec, issues = supplied_edit(empty_spec(), CUP_REQUEST, 'cup-diameters')
+    assert not issues and spec.family == 'open_frustum'
+    assert spec.cavity == 'blind' and spec.profile == 'plain'
+    assert len(questions(spec)) == 1 and 'height' in questions(spec)[0]
+    spec, issues = supplied_edit(spec, 'I forgot the height : 9cm', 'cup-height')
+    assert not issues and not questions(spec) and not spec.confirmed
+    assert values(spec) == {'bottom_diameter': 45, 'top_diameter': 65, 'height': 90,
+                            'wall_thickness': 1.5, 'bottom_thickness': 1.5}
+    for key, original, source, message in [
+        ('bottom_diameter', 4.5, 'basis diameter 4.5cm', 'cup-diameters'),
+        ('top_diameter', 6.5, 'upper diameter 6.5cm', 'cup-diameters'),
+        ('height', 9, 'height : 9cm', 'cup-height'),
+    ]:
+        measurement = spec.dimensions[key]
+        assert measurement.original_value == original and measurement.original_unit == 'cm'
+        assert measurement.source_text == source and measurement.message_id == message
+        assert measurement.source == 'operator' and not measurement.confirmed
+    for key in ('wall_thickness', 'bottom_thickness'):
+        default = spec.dimensions[key]
+        assert default.source == 'design_default' and default.value_mm == 1.5
+        assert default.original_value is None and default.message_id is None and not default.confirmed
+    assert 'open-top truncated cone (cup)' in readback(spec)
+    assert 'height 90 mm' in readback(spec)
+    assert readback(spec).count('(design default)') == 2
+
+
+@pytest.mark.parametrize('shape', ['cup', 'hollow cup', 'truncated cone', 'open-top frustum', 'open_frustum', 'frustum'])
+@pytest.mark.parametrize('bottom,top', [('base', 'top'), ('bottom outer', 'upper outer')])
+def test_cup_aliases_do_not_bind_generic_diameter(shape, bottom, top):
+    spec, issues = supplied_edit(empty_spec(), f'{shape} {bottom} diameter 4.5cm {top} diameter 6.5cm height 9cm', 'aliases')
+    assert not issues and not questions(spec)
+    assert spec.family == 'open_frustum'
+    assert 'diameter' not in values(spec) and 'outer_diameter' not in values(spec)
+    assert values(spec)['bottom_diameter'] == 45 and values(spec)['top_diameter'] == 65
+
+
+def test_explicit_cup_thickness_overrides_defaults_without_changing_height():
+    spec = confirmed_cup()
+    spec, issues = supplied_edit(spec, 'wall   thickness 0.2cm and base thickness 0.3cm', 'measured-thickness')
+    assert not issues and not questions(spec)
+    assert values(spec)['height'] == 90
+    assert values(spec)['wall_thickness'] == 2 and values(spec)['bottom_thickness'] == 3
+    for key in ('wall_thickness', 'bottom_thickness'):
+        assert spec.dimensions[key].source == 'operator'
+        assert spec.dimensions[key].message_id == 'measured-thickness'
+    assert not spec.confirmed and not any(m.confirmed for m in spec.dimensions.values())
+    assert 'design default' not in readback(spec)
+
+
+@pytest.mark.parametrize('text', ['wall thickness 0mm', 'wall thickness 2',
+    'wall thickness 2mm and wall thickness 3mm', 'wall thickness about 2mm'])
+def test_cup_defaults_cannot_resolve_invalid_or_ambiguous_operator_thickness(text):
+    spec, issues = supplied_edit(confirmed_cup(), text, 'invalid-thickness')
+    assert issues and spec.dimensions['wall_thickness'].value_mm is None
+    spec, _ = supplied_edit(spec, 'height 9cm', 'unrelated-reply')
+    assert spec.dimensions['wall_thickness'].value_mm is None
+    assert any('wall thickness' in question for question in questions(spec))
+
+
+@pytest.mark.parametrize('text', [
+    'bottom thickness 90mm', 'wall thickness 24mm', 'solid', 'open both ends', 'inner groove',
+])
+def test_cup_rejects_invalid_geometry_before_creating_artifacts(tmp_path, text):
+    spec, _ = supplied_edit(confirmed_cup(), text, 'invalid-cup')
+    assert questions(spec)
+    with pytest.raises(ValueError, match='Confirm the complete specification'):
+        build_reference(spec, tmp_path, 1, 'synthetic-video')
+    assert not list(tmp_path.glob('*.stl'))
+
+
+@pytest.mark.parametrize('bottom,top', [(45, 65), (65, 45), (45, 45)])
+def test_cup_mesh_has_tapered_walls_closed_floor_and_open_top(tmp_path, bottom, top):
+    spec = confirmed_cup(f'cup bottom diameter {bottom}mm top diameter {top}mm height 90mm')
+    sidecar = build_reference(spec, tmp_path, 5, 'synthetic-cup-video')
+    mesh = trimesh.load_mesh(tmp_path/'reference_full.stl')
+    assert all(sidecar['checks'].values())
+    assert mesh.is_watertight and mesh.is_winding_consistent and mesh.volume > 0
+    assert np.allclose(mesh.extents, [max(bottom, top), max(bottom, top), 90], atol=.1)
+    assert mesh.bounds[0, 2] == 0 and mesh.bounds[1, 2] == 90
+    assert sidecar['reference_sha256'] == digest(tmp_path/'reference_full.stl')
+    assert sidecar['video_sha256'] == 'synthetic-cup-video' and sidecar['reference_revision'] == 5
+    assert sidecar['geometry']['top'] == 'open' and sidecar['geometry']['bottom'] == 'closed'
+    assert sidecar['geometry']['wall_thickness_direction'] == 'radial'
+    assert 'design defaults' in sidecar['provenance'] and not sidecar['physical_fit_verified']
+
+    points, expected = [[0, 0, .75], [0, 0, 2], [0, 0, 89.9], [0, 0, -.1], [0, 0, 90.1]], [True, False, False, False, False]
+    for z in (2, 45, 89):
+        radius = bottom/2+(top-bottom)*z/180
+        points.extend([[radius-.75, 0, z], [radius+.2, 0, z], [radius-2, 0, z]])
+        expected.extend([True, False, False])
+    assert in_reference(points, spec).tolist() == expected
+    assert mesh.contains(points).tolist() == expected
+    samples = np.random.default_rng(123).uniform(mesh.bounds[0], mesh.bounds[1], (5000, 3))
+    assert np.mean(in_reference(samples, spec) == mesh.contains(samples)) > .995
+
+
+def test_cup_reference_requires_confirmation_and_all_dimensions(tmp_path):
+    spec, _ = supplied_edit(empty_spec(), CUP_REQUEST, 'cup')
+    with pytest.raises(ValueError, match='height'):
+        build_reference(spec, tmp_path, 1, 'video')
+    spec, _ = supplied_edit(spec, 'height 9cm', 'height')
+    with pytest.raises(ValueError, match='Confirm'):
+        build_reference(spec, tmp_path, 1, 'video')
+    spec.confirmed = True
+    with pytest.raises(ValueError, match='Confirm'):
+        build_reference(spec, tmp_path, 1, 'video')
+    assert not list(tmp_path.glob('*.stl'))
+
+
+def test_cup_live_agent_builds_checked_reference_before_devin(tmp_path, media, monkeypatch):
+    llm = ReferenceModelDouble()
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', lambda: llm)
+    fake = Double(media)
+    service = Reconstruction(Store(tmp_path/'runs'), provider_factory=fake)
+    job = service.new()
+    job.update(status='AWAITING_INPUT', video=media[0])
+    service.store.save(job)
+    draft = service.turn(job['job_id'], job['revision'], CUP_REQUEST, 'cup-request')
+    assert draft.status == 'AWAITING_INPUT' and draft.spec.family == 'open_frustum'
+    with pytest.raises(ValueError, match='required measurements'):
+        service.confirm(job['job_id'], draft.revision)
+    service.tick(job['job_id'])
+    assert not fake.created and not fake.uploads and not draft.reference
+    draft = service.turn(job['job_id'], draft.revision, 'I forgot the height : 9cm', 'cup-height')
+    assert draft.status == 'AWAITING_CONFIRMATION'
+    assert not draft.spec.confirmed and not fake.created
+    assert 'open_frustum' in llm.calls[0][0].content
+    assert '1.5 mm' in llm.calls[0][0].content
+    assert all(tool[0].name == 'prepare_complete_reference' for tool in llm.tools)
+    service.confirm(job['job_id'], draft.revision)
+    service.tick(job['job_id'])
+    built = service.store.load(job['job_id'])
+    assert built['status'] == 'UPLOADING' and built['session_id'] is None
+    assert not fake.created and not fake.uploads
+    assert llm.tools[-1][0].name == 'build_complete_reference'
+    folder = service.store.revision_dir(built)
+    sidecar = json.loads((folder/'reference/specification.json').read_text())
+    assert all(sidecar['checks'].values())
+    assert all(built['spec']['dimensions'][k]['confirmed'] for k in required(draft.spec))
+    assert sidecar['specification'] == built['spec']
+    assert sidecar['specification']['dimensions']['bottom_thickness']['source'] == 'design_default'
+    service.tick(job['job_id'])
+    assert len(fake.created) == 1
+    paths = [Path(media[0]['path']), folder/'reference/reference_full.stl',
+             folder/'reference/specification.json', folder/'frame-manifest.json']
+    assert fake.uploads == [(path.name, digest(path)) for path in paths]
+    assert 'open_frustum' in fake.created[0]
