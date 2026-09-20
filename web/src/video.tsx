@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VideoState } from './types.ts';
-import { ModeLabel } from './components/Bits.tsx';
 import { RingViewer } from './components/RingViewer.tsx';
 
 const TERMINAL = new Set(['ACCEPTED', 'FAILED', 'RETRY_EXHAUSTED', 'TIME_LIMIT', 'PROVIDER_LIMIT', 'STALE', 'MOCK_REFERENCE_READY']);
@@ -117,7 +116,7 @@ export function VideoPreview({video, onUpload}: {video: VideoControl; onUpload: 
     <div className="change-photo"><label className="link file-link">Change photo or video<input type="file" accept="image/jpeg,image/png,image/webp,video/*,.mov,.mkv" onChange={e => onUpload(e.target.files?.[0])}/></label></div></>;
 }
 export function VideoChat({video}: {video: VideoControl}) {
-  return <>{video.job?.messages.map((m,i) => <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{m.text}</p>{m.role !== 'user' && <ModeLabel label="Reconstruction" mode={m.mode ?? video.job!.mode}/>}</div></div>)}
+  return <>{video.job?.messages.map((m,i) => <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{m.text}</p></div></div>)}
     {!video.job && !video.error && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Loading your {video.mediaKind}…</p></div></div>}
     {video.job?.status === 'INGESTING' && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Preparing your {video.mediaKind} for reconstruction…</p></div></div>}
     {video.job?.status === 'AWAITING_CONFIRMATION' && <div className="msg ai draft"><div className="av">AI</div><div className="bubble"><p>Confirm the measurements and intact shape shown above. I will build the complete reference and start reconstruction.</p><div className="bubble-actions"><button className="btn go" disabled={video.busy} onClick={() => void video.confirm()}>Confirm and build</button></div></div></div>}
@@ -129,7 +128,7 @@ export function VideoResult({video}: {video: VideoControl}) {
   const j = video.job;
   const full = j?.reference.find(a => a.name === 'reference_full.stl');
   const repair = j?.status === 'ACCEPTED' ? j.result.find(a => a.name === 'repair_part_aligned.stl') : null;
-  return <div className={`viewer ${full ? 'has-model' : ''}`}><div className="v-top"><div><h2>{repair ? 'Proposed missing part' : full ? 'Complete reference' : 'Reconstruction'}</h2><p className="sub">{j?.status.replaceAll('_',' ').toLowerCase() ?? 'Waiting for photo or video'}</p></div>{j && <ModeLabel label="Reconstruction" mode={j.mode}/>}</div>
+  return <div className={`viewer ${full ? 'has-model' : ''}`}><div className="v-top"><div><h2>{repair ? 'Proposed missing part' : full ? 'Complete reference' : 'Reconstruction'}</h2><p className="sub">{j?.status.replaceAll('_',' ').toLowerCase() ?? 'Waiting for photo or video'}</p></div></div>
     {full ? <RingViewer ringUrl={full.url} segmentUrl={repair?.url ?? null} referenceMode/> : <div className="viewer-empty"><p>No 3D model yet. Confirm the intact shape and measurements first.</p></div>}
     {full && <div className="legend"><span className="pill"><span className="sw y"/>Complete reference</span>{repair && <span className="pill"><span className="sw"/>Proposed missing material</span>}</div>}</div>;
 }
