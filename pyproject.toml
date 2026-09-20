@@ -16,6 +16,8 @@ dependencies = [
   "cadquery>=2.4",
   "trimesh>=4.4",
   "rtree>=1.4.1",
+  "langchain-openai==1.6.2",
+  "langchain-core==1.6.3",
 ]
 
 [dependency-groups]

@@ -109,7 +109,7 @@ export function VideoDimensions({job}: {job: VideoState | null}) {
 export function VideoChat({video}: {video: VideoControl}) {
   return <>{video.job?.messages.map((m,i) => <div className={`msg ${m.role === 'user' ? 'me' : 'ai'}`} key={m.id ?? i}><div className="av" aria-hidden="true">{m.role === 'user' ? 'You' : 'AI'}</div><div className="bubble"><p style={{whiteSpace:'pre-wrap'}}>{m.text}</p>{m.role !== 'user' && <ModePill label="Video workflow" mode={m.mode ?? video.job!.mode}/>}</div></div>)}
     {!video.job && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Uploading your video…</p></div></div>}
-    {video.job?.status === 'INGESTING' && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Decoding the video and inspecting timestamped frames…</p></div></div>}
+    {video.job?.status === 'INGESTING' && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Decoding the video and preparing frames for validation…</p></div></div>}
     {video.job?.status === 'AWAITING_CONFIRMATION' && <div className="msg ai draft"><div className="av">AI</div><div className="bubble"><p>Confirm the measurements and intact shape shown above. I will build the complete reference and start reconstruction.</p><div className="bubble-actions"><button className="btn go" disabled={video.busy} onClick={() => void video.confirm()}>Confirm and build</button></div></div></div>}
     {video.error && <div className="msg ai warn"><div className="av">!</div><div className="bubble"><p role="alert">{video.error}</p></div></div>}
     {video.busy && <div className="msg ai"><div className="av">AI</div><div className="bubble"><p>Reading your answer…</p></div></div>}

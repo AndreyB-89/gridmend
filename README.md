@@ -22,6 +22,20 @@ uv run uvicorn api.main:app --port 8000     # open http://127.0.0.1:8000
 Web development with hot reload: `cd web && npm run dev` (proxies `/api` to port 8000).
 Tests: `uv run pytest -q`. Whole path: `scripts/smoke.sh`.
 
+## Video reconstruction on `devin-api`
+
+Upload the video, then give the final goal and measured dimensions in the chat:
+
+> Build the missing part of this ring with rectangular cross section, outer diameter 40 mm, inner diameter 36 mm and height 9 mm.
+
+The Nebius/LangChain agent treats the **complete intact reference** as an intermediate step. The operator does not need to request it separately. It calls the trusted measurement tool, asks for missing or conflicting values, and waits for **Confirm and build**. Its CadQuery tool then exports and checks the complete STL and STEP, retaining the ring's central hole. Dimensions and confirmation come from the operator; model-generated code is never executed.
+
+Only after these checks does GridMend send the original video, full reference STL, specification and frame manifest to Devin. The existing independent validator and same-session correction loop check the proposed missing material.
+
+Video ingestion performs local decoding and frame extraction. It does not wait for a Nebius image analysis. The reference agent uses text and tools; `NEBIUS_VIDEO_MODEL` overrides its model, otherwise it uses `NEBIUS_TEXT_MODEL` (default `Qwen/Qwen3-235B-A22B-Instruct-2507`). LIVE requires server-side `NEBIUS_API_KEY` and `DEVIN_API_KEY`; `RECONSTRUCTION_MODE=MOCK` builds only the reference and starts no paid session.
+
+The supported intact templates are rings, cylinders and boxes, with their supported profiles and cavities. Computational validation does not establish physical fit.
+
 ## Start here
 
 1. What we build tonight: [build plan v3](docs/build-plan.md). Rules: [project plan](docs/project-plan.md).

@@ -11,9 +11,9 @@ from api.schemas import ReferenceSpec, VideoState
 from cad.reference import build_reference
 from engine.providers.common import ProviderError
 from engine.providers.devin import ARTIFACT_NAMES, Devin
-from engine.providers.video_nebius import dialogue, model, observe
+from engine.providers.video_nebius import construct_reference, dialogue, model
 from engine.reconstruction.media import inspect_video
-from engine.reconstruction.specification import empty_spec, questions, readback, required, values
+from engine.reconstruction.specification import empty_spec, questions, required, values
 from engine.reconstruction.store import Store, atomic_json, digest, redact
 from engine.reconstruction.validator import validate
 
@@ -231,13 +231,12 @@ class Reconstruction:
         if status == 'INGESTING':
             job['video'] = inspect_video(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
             self.store.event(job, 'video_decoded', video=job['video'])
-            job['observations'] = observe(self.store, job)
             self.store.say(job, 'Video received. What would you like me to do?')
             self.store.transition(job, 'AWAITING_INPUT')
             return
         if status == 'QUEUED':
             reference_folder = folder/'reference'
-            sidecar = build_reference(ReferenceSpec.model_validate(job['spec']), reference_folder, job['revision'], job['video']['sha256'])
+            sidecar = construct_reference(self.store, job, build_reference)
             job['reference'] = [self.artifact(job, reference_folder/n) for n in ('reference_full.stl', 'reference_full.step', 'specification.json')]
             self.store.event(job, 'reference_built', specification=sidecar, artifacts=job['reference'])
             if job['mode'] == 'MOCK' and not self.offline_double:

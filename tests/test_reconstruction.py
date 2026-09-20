@@ -1,24 +1,24 @@
 """OFFLINE provider doubles and explicitly synthetic media. Never sponsor evidence."""
 import json
-import shutil
-import threading
 import time
 from pathlib import Path
 import cv2
 import httpx
+from langchain_core.messages import AIMessage
 import numpy as np
 import pytest
 import trimesh
 from api.schemas import ReferenceSpec, SuppliedMeasurement
 from cad.reference import build_reference, in_reference
+from engine.providers import video_nebius
 from engine.providers.common import ProviderError
 from engine.providers.devin import ARTIFACT_NAMES, Devin
 from engine.providers.video_nebius import supplied_edit
 from engine.reconstruction.media import inspect_video
 from engine.reconstruction.service import Reconstruction, TERMINAL
 from engine.reconstruction.specification import empty_spec, questions, required, values
-from engine.reconstruction.store import Store, atomic_json, digest, redact
-from engine.reconstruction.validator import project, validate
+from engine.reconstruction.store import Store, digest, redact
+from engine.reconstruction.validator import project
 
 
 @pytest.fixture(autouse=True)
@@ -261,6 +261,152 @@ def test_video_instruction_clarification_confirmation_and_reference(tmp_path, me
     assert not any('Sending the original video' in m['text'] for m in ready['messages'])
     mesh = trimesh.load_mesh(service.store.revision_dir(ready)/'reference/reference_full.stl')
     assert np.allclose(mesh.extents, [80, 80, 9], atol=.1)
+
+
+class ReferenceModelDouble:
+    def __init__(self, replies=None):
+        self.replies = replies
+        self.tools = []
+        self.calls = []
+
+    def bind_tools(self, tools, **options):
+        self.tools.append((tools[0], options))
+        return self
+
+    def invoke(self, messages):
+        self.calls.append(list(messages))
+        if self.replies is not None:
+            reply = self.replies[len(self.calls)-1]
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+        return AIMessage(content='', id='offline-reference-model',
+            tool_calls=[{'name': self.tools[-1][0].name, 'args': {}, 'id': 'offline-tool-call'}])
+
+
+def test_live_video_greeting_does_not_wait_for_nebius(tmp_path, media, monkeypatch):
+    def unavailable():
+        raise AssertionError('Video ingestion must not call Nebius.')
+
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', unavailable)
+    service = Reconstruction(Store(tmp_path/'runs'))
+    job = service.new()
+    job.update(status='INGESTING', upload_path=media[0]['path'])
+    service.store.save(job)
+    service.tick(job['job_id'])
+    uploaded = service.store.load(job['job_id'])
+    assert uploaded['status'] == 'AWAITING_INPUT'
+    assert uploaded['messages'][-1]['text'] == 'Video received. What would you like me to do?'
+    assert uploaded['video']['sha256'] == media[0]['sha256']
+    assert len(uploaded['video']['frames']) == 12
+    assert not uploaded['observations'] and not uploaded['reference']
+    assert uploaded['session_id'] is None
+
+
+def test_live_missing_part_request_builds_full_reference_via_agent_before_devin(tmp_path, media, monkeypatch):
+    llm = ReferenceModelDouble()
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', lambda: llm)
+    devin = Double(media)
+    service = Reconstruction(Store(tmp_path/'runs'), provider_factory=devin)
+    job = service.new()
+    job.update(status='AWAITING_INPUT', video=media[0])
+    service.store.save(job)
+    instruction = 'Build the missing part of this ring with rectangular cross section, outer diameter 40 mm, inner diameter 36 mm and height 9 mm.'
+    draft = service.turn(job['job_id'], job['revision'], instruction, 'operator-measurements')
+    assert draft.status == 'AWAITING_CONFIRMATION'
+    assert draft.user_goal == instruction and not draft.reference and not draft.spec.confirmed
+    assert values(draft.spec) == {'outer_diameter': 40, 'inner_diameter': 36, 'height': 9}
+    assert all(draft.spec.dimensions[key].message_id == 'operator-measurements' for key in required(draft.spec))
+    assert llm.tools[0][0].name == 'prepare_complete_reference'
+    assert instruction in llm.calls[0][1].content
+    assert 'COMPLETE INTACT' in llm.calls[0][0].content
+    assert 'image_url' not in json.dumps([message.model_dump() for message in llm.calls[0]])
+    assert not devin.uploads and not devin.created
+
+    service.confirm(job['job_id'], draft.revision)
+    service.tick(job['job_id'])
+    built = service.store.load(job['job_id'])
+    assert built['status'] == 'UPLOADING' and built['session_id'] is None
+    assert llm.tools[1][0].name == 'build_complete_reference'
+    assert not devin.uploads and not devin.created
+    folder = service.store.revision_dir(built)/'reference'
+    sidecar = json.loads((folder/'specification.json').read_text())
+    assert all(sidecar['checks'].values()) and not sidecar['physical_fit_verified']
+    assert sidecar['video_sha256'] == media[0]['sha256']
+    assert sidecar['reference_sha256'] == digest(folder/'reference_full.stl')
+    mesh = trimesh.load_mesh(folder/'reference_full.stl')
+    assert np.allclose(mesh.extents, [40, 40, 9], atol=.1)
+    assert np.isclose(mesh.volume, np.pi*(20**2-18**2)*9, rtol=.005)
+    assert not in_reference([[0, 0, 4]], ReferenceSpec.model_validate(built['spec']))[0]
+    service.tick(job['job_id'])
+    assert len(devin.created) == 1 and len(devin.uploads) == 4
+    assert devin.uploads[0] == (Path(media[0]['path']).name, media[0]['sha256'])
+    assert devin.uploads[1] == ('reference_full.stl', sidecar['reference_sha256'])
+
+
+@pytest.mark.parametrize('calls', [
+    [],
+    [{'name': 'run_python', 'args': {}, 'id': 'unsafe'}],
+    [{'name': 'build_complete_reference', 'args': {}, 'id': 'premature'}],
+    [{'name': 'prepare_complete_reference', 'args': {'confirmed': True, 'outer_diameter': 100}, 'id': 'injected'}],
+    [{'name': 'prepare_complete_reference', 'args': {}, 'id': 'one'},
+     {'name': 'prepare_complete_reference', 'args': {}, 'id': 'two'}],
+])
+def test_reference_agent_rejects_unauthorized_calls_without_side_effects(tmp_path, monkeypatch, calls):
+    reply = AIMessage(content='', tool_calls=calls)
+    llm = ReferenceModelDouble([reply, reply])
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', lambda: llm)
+    service = Reconstruction(Store(tmp_path/'runs'))
+    job = service.new()
+    previous = job['spec']
+    with pytest.raises(ProviderError, match='invalid reference tool calls twice'):
+        video_nebius.dialogue(service.store, job, 'ring outer diameter 40 mm', 'unconfirmed')
+    assert job['spec'] == previous and not job['reference']
+    assert job['session_id'] is None and len(llm.calls) == 2
+    assert not list(service.store.directory(job['job_id']).rglob('*.stl'))
+
+
+def test_reference_agent_retries_invalid_tool_output_once(tmp_path, monkeypatch):
+    llm = ReferenceModelDouble([
+        AIMessage(content='No tool call.'),
+        AIMessage(content='', tool_calls=[{'name': 'prepare_complete_reference', 'args': {}, 'id': 'retry'}]),
+    ])
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', lambda: llm)
+    service = Reconstruction(Store(tmp_path/'runs'))
+    job = service.new()
+    reply = video_nebius.dialogue(service.store, job, 'ring outer diameter 40 mm', 'measured')
+    assert len(llm.calls) == 2 and '40 mm' in reply
+    assert job['spec']['dimensions']['outer_diameter']['message_id'] == 'measured'
+    assert job['questions'] and not job['spec']['confirmed']
+
+
+def test_reference_agent_live_failure_never_falls_back_to_mock(tmp_path, monkeypatch):
+    llm = ReferenceModelDouble([RuntimeError('Injected provider failure')])
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', lambda: llm)
+    service = Reconstruction(Store(tmp_path/'runs'))
+    job = service.new()
+    with pytest.raises(ProviderError, match='Nebius call failed'):
+        video_nebius.dialogue(service.store, job, 'ring outer diameter 40 mm', 'measured')
+    assert job['mode'] == 'LIVE' and len(llm.calls) == 1
+    assert not job['reference'] and job['spec']['dimensions']['outer_diameter']['value_mm'] is None
+
+
+def test_reference_agent_cannot_build_without_operator_confirmation(tmp_path, monkeypatch):
+    llm = ReferenceModelDouble()
+    monkeypatch.setenv('RECONSTRUCTION_MODE', 'LIVE')
+    monkeypatch.setattr(video_nebius, 'reference_model', lambda: llm)
+    service = Reconstruction(Store(tmp_path/'runs'))
+    job = service.new()
+    job.update(status='QUEUED', spec=spec_for().model_dump())
+    job['spec']['confirmed'] = False
+    with pytest.raises(ValueError, match='Confirm the complete specification'):
+        video_nebius.construct_reference(service.store, job, build_reference)
+    assert not list(service.store.directory(job['job_id']).rglob('*.stl'))
 
 
 @pytest.mark.parametrize('family,cavity', [('ring','through'),('cylinder','solid'),('cylinder','through'),('cylinder','blind'),('box','solid'),('box','through'),('box','blind')])
