@@ -715,6 +715,103 @@ def test_live_devin_fails_without_mock_fallback(tmp_path,media,monkeypatch):
     assert 'provider_response' in (service.store.directory(id)/'events.jsonl').read_text()
 
 
+@pytest.mark.parametrize('size', [29999, 30000, 60000])
+def test_devin_message_limit_preserves_full_content(tmp_path, media, size):
+    service, fake, id = ready_service(tmp_path, media)
+    job = run_until(service, id, {'WORKING'})
+    requests = []
+    url = 'https://app.devin.ai/attachments/test/continuation.txt'
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json=url if request.url.path == '/v1/attachments' else None)
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    message = 'é' * size
+    Devin(service.store, job, client=client).message(message)
+    sent = json.loads(requests[-1].content)['message']
+    assert len(sent) < 30000
+    assert requests[-1].url.path == '/v1/sessions/test-session/message'
+    if size < 30000:
+        assert len(requests) == 1 and sent == message
+    else:
+        assert len(requests) == 2 and requests[0].url.path == '/v1/attachments'
+        assert f'\nATTACHMENT:"{url}"' in sent
+        saved, = service.store.revision_dir(job).glob('continuation-*.txt')
+        assert saved.read_text() == message
+        assert message.encode('utf-8') in requests[0].content
+    assert len(fake.created) == 1
+
+
+@pytest.mark.parametrize('status', [400, 503])
+def test_oversized_message_upload_failure_does_not_send_or_fall_back(tmp_path, media, status):
+    service, fake, id = ready_service(tmp_path, media)
+    job = run_until(service, id, {'WORKING'})
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(status, json={'detail': 'Injected upload failure'})
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    with pytest.raises(ProviderError):
+        Devin(service.store, job, client=client).message('x' * 30000)
+    assert [r.url.path for r in requests] == ['/v1/attachments']
+    assert len(fake.created) == 1
+
+
+def test_oversized_message_attachment_redacts_secrets(tmp_path, media, monkeypatch):
+    service, fake, id = ready_service(tmp_path, media)
+    job = run_until(service, id, {'WORKING'})
+    secret = 'synthetic-private-key-value'
+    monkeypatch.setenv('NEBIUS_API_KEY', secret)
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json='https://app.devin.ai/attachments/test/continuation.txt')
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    Devin(service.store, job, client=client).message('x' * 30000 + secret)
+    saved, = service.store.revision_dir(job).glob('continuation-*.txt')
+    assert secret not in saved.read_text()
+    assert saved.read_text().endswith('[REDACTED]')
+    assert all(secret.encode() not in request.content for request in requests)
+    assert secret not in (service.store.directory(id)/'events.jsonl').read_text()
+
+
+def test_large_correction_attachment_keeps_report_attempt_and_session(tmp_path, media):
+    service, fake, id = ready_service(tmp_path, media)
+    job = run_until(service, id, {'WORKING'})
+    reference = service.store.revision_dir(job)/'reference/reference_full.stl'
+    reference_hash = digest(reference)
+    report = {'accepted': False, 'checks': [
+        {'name': 'synthetic_failure', 'passed': False, 'detail': 'Full diagnostic. ' * 3000},
+    ]}
+    service.reject(job, report)
+    report_path = service.store.revision_dir(job)/'attempts/1/validator.json'
+    report_hash = digest(report_path)
+    original_message = service.store.private(job)['correction_message']
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json='https://app.devin.ai/attachments/test/continuation.txt')
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    restarted = Reconstruction(service.store, provider_factory=lambda store, state: Devin(store, state, client=client))
+    restarted.tick(id)
+    resumed = service.store.load(id)
+    assert resumed['status'] == 'WORKING'
+    assert resumed['attempt'] == 2 and resumed['retries'] == 1
+    assert resumed['session_id'] == job['session_id'] and len(fake.created) == 1
+    assert digest(reference) == reference_hash and digest(report_path) == report_hash
+    saved, = service.store.revision_dir(job).glob('continuation-*.txt')
+    assert saved.read_text() == original_message
+    assert report_path.read_text() in saved.read_text()
+    assert [r.url.path for r in requests] == ['/v1/attachments', '/v1/sessions/test-session/message']
+
+
 @pytest.mark.parametrize('url',['http://localhost/private','https://evil.example/a','https://api.devin.ai/v1/secrets','https://api.devin.ai/v1/attachments/test/name?token=abc'])
 def test_artifact_url_restrictions(tmp_path,media,url):
     service,fake,id=ready_service(tmp_path,media)

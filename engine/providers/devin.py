@@ -6,13 +6,15 @@ is documented. The credential's existing account/credits determine billing.
 import os
 import re
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urljoin
 import httpx
 from engine.providers.common import ProviderError
-from engine.reconstruction.store import digest
+from engine.reconstruction.store import digest, redact
 
 BASE = 'https://api.devin.ai/v1'
+MESSAGE_CHAR_LIMIT = 30000
 ARTIFACT_NAMES = ['repair_part.stl', 'surviving_estimate.stl', 'generation.py', 'requirements.txt', 'README.md', 'summary.json', 'evidence.json']
 OUTPUT_SCHEMA = {'type': 'object', 'properties': {
     'status': {'type': 'string', 'enum': ['working', 'candidate_ready', 'needs_input']},
@@ -79,6 +81,16 @@ class Devin:
         return self.call('GET', '/sessions/'+self.job['session_id'])
 
     def message(self, message):
+        if len(message) >= MESSAGE_CHAR_LIMIT:
+            path = self.store.revision_dir(self.job)/f'continuation-{uuid.uuid4().hex}.txt'
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(redact(message), encoding='utf-8')
+            url = self.upload(path)
+            message = (
+                'Read and follow the attached full continuation message in this same session. '
+                'It preserves the complete instructions and any unchanged validator report.\n'
+                f'ATTACHMENT:"{url}"'
+            )
         return self.call('POST', '/sessions/'+self.job['session_id']+'/message', json={'message': message})
 
     def terminate(self):
