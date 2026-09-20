@@ -239,7 +239,7 @@ def test_video_instruction_clarification_confirmation_and_reference(tmp_path, me
     service.tick(job['job_id'])
     uploaded = service.store.load(job['job_id'])
     assert uploaded['status'] == 'AWAITING_INPUT'
-    assert uploaded['messages'][-1]['text'] == 'Vidéo bien reçue, que dois-je faire ?'
+    assert uploaded['messages'][-1]['text'] == 'Video received. What would you like me to do?'
     assert all(d['value_mm'] is None for d in uploaded['spec']['dimensions'].values())
 
     instruction = 'build the missing part of this ring of outer radius 4cm inner radius 3.4cm and square cross section 0.9cmx0.6cm'
@@ -290,6 +290,80 @@ def test_media_real_bytes_and_metadata(media,tmp_path):
     with pytest.raises(ValueError,match='cannot be decoded'): inspect_video(bad,tmp_path/'bad')
     with bad.open('wb') as f: f.truncate(512*1024*1024+1)
     with pytest.raises(ValueError,match='512'): inspect_video(bad,tmp_path/'large')
+
+
+def test_validated_complete_reference_is_uploaded_before_devin_starts(tmp_path, media, monkeypatch):
+    service, fake, job_id = ready_service(tmp_path, media)
+    assert service.store.load(job_id)['status'] == 'QUEUED'
+    assert not fake.uploads and not fake.created
+
+    service.tick(job_id)
+    built = service.store.load(job_id)
+    assert built['status'] == 'UPLOADING' and built['session_id'] is None
+    assert not fake.uploads and not fake.created
+    folder = service.store.revision_dir(built)
+    reference = folder/'reference'
+    sidecar = json.loads((reference/'specification.json').read_text())
+    assert all(sidecar['checks'].values())
+    assert sidecar['specification'] == built['spec']
+    assert sidecar['reference_revision'] == built['revision']
+    assert sidecar['video_sha256'] == media[0]['sha256']
+    assert sidecar['reference_sha256'] == digest(reference/'reference_full.stl')
+    assert np.allclose(trimesh.load_mesh(reference/'reference_full.stl').extents, [20, 16, 6])
+    assert not built['result']
+
+    create = fake.create
+
+    def create_with_complete_proof(prompt):
+        expected = [Path(media[0]['path']), reference/'reference_full.stl',
+                    reference/'specification.json', folder/'frame-manifest.json']
+        assert fake.uploads == [(path.name, digest(path)) for path in expected]
+        assert all(f'ATTACHMENT:"https://api.devin.ai/v1/attachments/test/{path.name}"' in prompt
+                   for path in expected)
+        assert 'COMPLETE INTACT object' in prompt
+        assert 'Reconstruct missing = intact reference minus observed surviving material.' in prompt
+        return create(prompt)
+
+    monkeypatch.setattr(fake, 'create', create_with_complete_proof)
+    service.tick(job_id)
+    assert service.store.load(job_id)['status'] == 'WORKING'
+    assert len(fake.created) == 1
+
+
+@pytest.mark.parametrize('reason', [
+    'Reference generation failed.',
+    "Reference validation failed: {'closed': False}",
+])
+def test_failed_reference_stops_before_devin_handoff(tmp_path, media, monkeypatch, reason):
+    service, fake, job_id = ready_service(tmp_path, media)
+
+    def failed_reference(spec, folder, revision, video_hash):
+        raise ValueError(reason)
+
+    monkeypatch.setattr('engine.reconstruction.service.build_reference', failed_reference)
+    service.tick(job_id)
+    job = service.store.load(job_id)
+    assert job['status'] == 'FAILED' and reason in job['terminal_reason']
+    assert not job['reference'] and job['session_id'] is None
+    assert not fake.uploads and not fake.created
+
+
+def test_measurement_change_before_handoff_requires_a_new_reference(tmp_path, media):
+    service, fake, job_id = ready_service(tmp_path, media)
+    service.tick(job_id)
+    built = service.store.load(job_id)
+    assert built['status'] == 'UPLOADING'
+    changed = service.turn(job_id, built['revision'], 'correct length to 22 mm', 'before-handoff')
+    assert changed.status == 'AWAITING_CONFIRMATION' and not changed.reference
+    assert changed.revision == built['revision'] + 1
+    service.tick(job_id)
+    assert not fake.uploads and not fake.created
+    service.confirm(job_id, changed.revision)
+    service.tick(job_id)
+    rebuilt = service.store.load(job_id)
+    assert rebuilt['status'] == 'UPLOADING' and not fake.uploads
+    reference = service.store.revision_dir(rebuilt)/'reference'
+    assert np.allclose(trimesh.load_mesh(reference/'reference_full.stl').extents, [22, 16, 6])
 
 
 def test_full_feedback_path_with_injected_invalid_stl(tmp_path,media):

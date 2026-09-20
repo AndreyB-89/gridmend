@@ -232,7 +232,7 @@ class Reconstruction:
             job['video'] = inspect_video(Path(job['upload_path']), self.store.directory(job['job_id'])/'frames')
             self.store.event(job, 'video_decoded', video=job['video'])
             job['observations'] = observe(self.store, job)
-            self.store.say(job, 'Vidéo bien reçue, que dois-je faire ?')
+            self.store.say(job, 'Video received. What would you like me to do?')
             self.store.transition(job, 'AWAITING_INPUT')
             return
         if status == 'QUEUED':

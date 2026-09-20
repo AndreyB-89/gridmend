@@ -1,7 +1,7 @@
 GridMend reconstruction protocol v1. Job $job_id, reference revision $revision, candidate attempt $attempt.
 Source: FIMI — cadrage demo et prompt Devin, initial-session prompt; updated for mandatory immutable full reference and 100 correction retries.
 
-Produce ONLY the missing material that completes the damaged object. Exclude the surviving material. Add no assembly clearance, offset or connector. Do not build an interface, repository or PR.
+Produce ONLY the missing material that completes the damaged object. Exclude the surviving material. Add no assembly clearance, offset or connector. Do not build an interface, repository or PR. Write all operator-facing questions, summaries and limitations in English.
 
 INPUTS
 $inputs
